@@ -36,15 +36,6 @@ Files here interact with asset bearing contracts, but themselves do not hold sta
 |lib/* | Uniswap V3 helper libraries |
 
 
-### Tools
-Various tools. Run in a browser with ```php -S localhost:8080``` 
-
-|File           | Description  |
-|--|--|
-|lonG.html | Open positions   |
-|debt.html | Check ROE-aave debts and deleverage or liquidate bad debt |
-| optionsMgr.html | Overview of ROE lending pool and buy/sell options |
-| charts.html | Chart of various LP earnings vs option model |
 
 ## Testing
 
@@ -52,13 +43,19 @@ Various tools. Run in a browser with ```php -S localhost:8080```
 
 The project uses Brownie as a testing framework. https://eth-brownie.readthedocs.io/en/stable/index.html
 
-|File| Unit Tests For |
-|--|--|
-| test_pm.py | LonggPositionManager.sol |
+|File| Unit Tests For | Details |
+|--|--|--|
+| test_RoeRouter.py | RoeRouter.sol |
 | test_ranger.py | TokenisableRange.sol, RangeManager.sol |
 | test_ranger_WBTCUSDC.py | TokenisableRange.sol |
-| test_pm_ranger.py | OptionsPositionManager.sol |
+| test_PositionManager.py | PositionManager/PositionManager.sol |
+| test_OptionsPositionManager.py | PositionManager/OptionsPositionManager.sol |
+| test_LonggPositionManager.py | PositionManager/LonggPositionManager.sol |
+| test_RangeManager.py, test_RangeManager_WBTCUSDC | RangeManager.sol |
 | test_zap.py | helpers/ZapBox.sol |
+| test_zapTR.py | helpers/ZapBoxTR.sol |
+| test_GeVault.py | GeVault.sol |
+| test_GeVault_arbi.py | GeVault.sol | Specific test to run on Arbitrum network |
 
 
 First, start a local mainnet-fork - this is needed as we are testing Chainlink feeds. You can use Alchemy or Infura or any archive node.
