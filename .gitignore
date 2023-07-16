@@ -1,0 +1,12 @@
+__pycache__
+.env
+.history
+.hypothesis/
+build/
+.ignore/
+node_modules/
+package-lock.json
+hardhat.config.js
+mnemonic.txt
+.pytest_cache/
+artifacts/
