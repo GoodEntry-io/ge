@@ -262,7 +262,7 @@ contract OptionsPositionManager is PositionManager {
     uint amtA;
     uint amtB;
     // Add dust to be sure debt reformed >= debt outstanding
-    debt = repayAmount + 2 * addDust(token0, token1);
+    debt = repayAmount + addDust(token0, token1);
 
     // Claim fees first so that deposit will match exactly
     TokenisableRange(debtAsset).claimFee();
@@ -489,7 +489,7 @@ contract OptionsPositionManager is PositionManager {
     uint [] memory amountsIn = AmountsRouter(address(ammRouter)).getAmountsIn(recvAmount, path);
     
     require( amountsIn[0] <= maxAmount && amountsIn[0] > 0, "OPM: Invalid Swap Amounts" );
-    require( amountsIn[0]  < ERC20(path[0]).balanceOf(address(this)), "OPM: Insufficient Token Amount" );
+    require( amountsIn[0] <= ERC20(path[0]).balanceOf(address(this)), "OPM: Insufficient Token Amount" );
     amountsIn = ammRouter.swapTokensForExactTokens(
       recvAmount,
       maxAmount,
@@ -539,7 +539,7 @@ contract OptionsPositionManager is PositionManager {
   function addDust(address token0, address token1) internal returns (uint amount){
     uint decimals0 = ERC20(token0).decimals();
     uint decimals1 = ERC20(token1).decimals();
-    if (decimals0 > decimals1) amount = 10**(decimals0 - decimals1);
-    else amount = 10**(decimals1 - decimals0);
+    if (decimals0 > decimals1) amount = 10**(19 - decimals1);
+    else amount = 10**(19 - decimals0);
   }
 }
