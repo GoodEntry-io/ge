@@ -262,8 +262,8 @@ contract OptionsPositionManager is PositionManager {
     uint amtA;
     uint amtB;
     // Add dust to be sure debt reformed >= debt outstanding
-    debt = repayAmount + addDust(token0, token1);
-
+    debt = repayAmount + addDust(debtAsset, token0, token1);
+    
     // Claim fees first so that deposit will match exactly
     TokenisableRange(debtAsset).claimFee();
     { //localize vars
@@ -338,10 +338,14 @@ contract OptionsPositionManager is PositionManager {
     IAaveOracle oracle = TokenisableRange(debtAsset).ORACLE();
     (ERC20 token0, uint8 decimals0) = TokenisableRange(debtAsset).TOKEN0();
     (ERC20 token1, uint8 decimals1) = TokenisableRange(debtAsset).TOKEN1();
-    uint assetValue = TokenisableRange(debtAsset).latestAnswer() * debtAmount / 1e18;
+    uint debtValue = TokenisableRange(debtAsset).latestAnswer() * debtAmount / 1e18;
     uint tokensValue = token0Amount * oracle.getAssetPrice(address(token0)) / 10**decimals0 + token1Amount * oracle.getAssetPrice(address(token1)) / 10**decimals1;
-    // check that value of underlying tokens > 98% theoretical value  of TR asset
-    require( tokensValue > assetValue * 98 / 100 && tokensValue < assetValue * 102 / 100, "OPM: Slippage Error");
+    // check that value of underlying tokens > 98% theoretical value  of TR asset, or that this is dust 
+    require( 
+      (debtValue < 1e8 && tokensValue < 1e8 )
+      || (tokensValue > debtValue * 98 / 100 && tokensValue < debtValue * 102 / 100), 
+      "OPM: Slippage Error"
+    );
   }
 
   
@@ -487,7 +491,7 @@ contract OptionsPositionManager is PositionManager {
   function swapTokensForExactTokens(IUniswapV2Router01 ammRouter, uint recvAmount, uint maxAmount, address[] memory path) internal {
     checkSetAllowance(path[0], address(ammRouter), maxAmount);
     uint [] memory amountsIn = AmountsRouter(address(ammRouter)).getAmountsIn(recvAmount, path);
-    
+        
     require( amountsIn[0] <= maxAmount && amountsIn[0] > 0, "OPM: Invalid Swap Amounts" );
     require( amountsIn[0] <= ERC20(path[0]).balanceOf(address(this)), "OPM: Insufficient Token Amount" );
     amountsIn = ammRouter.swapTokensForExactTokens(
@@ -533,13 +537,16 @@ contract OptionsPositionManager is PositionManager {
   }
   
   
-  /// @notice Calculate a dust amount such that any underlying token amount would be larger than 1 unit
+  /// @notice Calculate a dust amount such that any underlying token amount would be larger than 100 units
+  /// @param debtAsset The debt TR asset
   /// @param token0 Underlying token
   /// @param token1 Underlying token
-  function addDust(address token0, address token1) internal returns (uint amount){
-    uint decimals0 = ERC20(token0).decimals();
-    uint decimals1 = ERC20(token1).decimals();
-    if (decimals0 > decimals1) amount = 10**(19 - decimals1);
-    else amount = 10**(19 - decimals0);
+  function addDust(address debtAsset, address token0, address token1) internal returns (uint amount){
+    IAaveOracle oracle = TokenisableRange(debtAsset).ORACLE();
+    uint scale0 = 10**(20 - ERC20(token0).decimals()) * oracle.getAssetPrice(token0) / 1e8;
+    uint scale1 = 10**(20 - ERC20(token1).decimals()) * oracle.getAssetPrice(token1) / 1e8;
+    
+    if (scale0 > scale1) amount = scale0;
+    else amount = scale1;
   }
 }
