@@ -2,41 +2,7 @@
 pragma solidity 0.8.19;
 
 import "../PositionManager/PositionManager.sol";
-import "../PositionManager/LonggPositionManager.sol";
 import "../PositionManager/OptionsPositionManager.sol";
-import "../helper/ZapBox.sol";
-
-/// @notice Extend LonggPositionManager to test interal function inaccessible code branches
-contract Test_LonggPositionManager is LonggPositionManager {
-
-  /// @param roerouter address of the ROE pools router
-  constructor(address roerouter) LonggPositionManager(roerouter) {}
-  
-  /// @notice test internal function validateValuesAgainstOracle
-  function test_validateValuesAgainstOracle(IPriceOracle oracle, address assetA, uint amountA, address assetB, uint amountB) external view { 
-    validateValuesAgainstOracle(oracle, assetA, amountA, assetB, amountB);
-  }
-  
-  /// @notice test internal function getTargetAmountFromOracle
-  function test_getTargetAmountFromOracle(IPriceOracle oracle, address assetA, uint amountA, address assetB) external view returns (uint amountB) {
-    amountB = getTargetAmountFromOracle(oracle, assetA, amountA, assetB);
-  }
-}
-
-
-
-/// @notice Extend ZapBox to test interal function inaccessible code branches
-contract Test_ZapBox is ZapBox {
-
-  /// @param roerouter address of the ROE pools router
-  constructor(address roerouter) ZapBox(roerouter) {}
-
-  /// @notice test internal function cleanupEth
-  function test_cleanupEth() external {
-    cleanupEth();
-  }
-}
-
 
 
 /// @notice Extend PositionManager to test interal function inaccessible code branches
