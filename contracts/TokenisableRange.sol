@@ -302,15 +302,16 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
       })
     );
     liquidity = uint128(uint256(liquidity) - removedLiquidity); 
-    
-    POS_MGR.collect( 
-      INonfungiblePositionManager.CollectParams({
-        tokenId: tokenId,
-        recipient: msg.sender,
-        amount0Max: uint128(removed0),
-        amount1Max: uint128(removed1)
-      })
-    );
+    if (removed0 > 0 || removed1 > 0){
+      POS_MGR.collect( 
+        INonfungiblePositionManager.CollectParams({
+          tokenId: tokenId,
+          recipient: msg.sender,
+          amount0Max: uint128(removed0),
+          amount1Max: uint128(removed1)
+        })
+      );
+    }
     // Handle uncompounded fees
     if (fee0 > 0) {
       TOKEN0.token.safeTransfer( msg.sender, fee0 * lp / totalSupply());
