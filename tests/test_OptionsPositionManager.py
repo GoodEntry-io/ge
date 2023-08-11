@@ -225,35 +225,6 @@ def test_unallowed_flashloan_call(pm, owner, roerouter):
     pm.executeOperation([], [], [], owner, calldata, {"from": owner})
 
 
-
-def test_swap(accounts, chain, pm, owner, timelock, lendingPool, weth, usdc, user, interface, router, oracle, contracts, TokenisableRange, config, OptionsPositionManager, roerouter):
-  lendingPool.PMAssign(pm, {"from": timelock })
-  poolId = roerouter.getPoolsLength() - 1
-  usdcBalBef = interface.ERC20(lendingPool.getReserveData(usdc)[7]).balanceOf(user)
-  wethBalBef = interface.ERC20(lendingPool.getReserveData(weth)[7]).balanceOf(user)
-  print('bef swap', usdcBalBef, wethBalBef)
-  pm.swapTokens(poolId, usdc, 0, {"from": user})
-  usdcBalAft = interface.ERC20(lendingPool.getReserveData(usdc)[7]).balanceOf(user)
-  wethBalAft = interface.ERC20(lendingPool.getReserveData(weth)[7]).balanceOf(user)
-  print('aft swap', usdcBalAft, wethBalAft)
-  
-  valBef = oracle.getAssetPrice(usdc) * usdcBalBef / 1e6 + oracle.getAssetPrice(weth) *  wethBalBef / 1e18
-  valAft = oracle.getAssetPrice(usdc) * usdcBalAft / 1e6 + oracle.getAssetPrice(weth) *  wethBalAft / 1e18
-  valDiff = abs(valAft - valBef)
-  assert valDiff / valBef < 0.01 # difference should be less than 1%, including fee and max slippage 1%
-
-  # swap the other way
-  usdcBalBef = interface.ERC20(lendingPool.getReserveData(usdc)[7]).balanceOf(user)
-  wethBalBef = interface.ERC20(lendingPool.getReserveData(weth)[7]).balanceOf(user)
-  print('bef swap', usdcBalBef, wethBalBef)
-  pm.swapTokens(poolId, weth, 0, {"from": user})
-  usdcBalAft = interface.ERC20(lendingPool.getReserveData(usdc)[7]).balanceOf(user)
-  wethBalAft = interface.ERC20(lendingPool.getReserveData(weth)[7]).balanceOf(user)
-  valBef = oracle.getAssetPrice(usdc) * usdcBalBef / 1e6 + oracle.getAssetPrice(weth) *  wethBalBef / 1e18
-  valAft = oracle.getAssetPrice(usdc) * usdcBalAft / 1e6 + oracle.getAssetPrice(weth) *  wethBalAft / 1e18
-  valDiff = abs(valAft - valBef)
-  assert valDiff / valBef < 0.01 # difference should be less than 1%, including fee and max slippage 1%
-
 def test_buy_options(accounts, chain, pm, owner, timelock, lendingPool, weth, usdc, user, interface, router, oracle, contracts, TokenisableRange, prep_ranger, config, OptionsPositionManager, roerouter):
   tr, trb, r = contracts
   lendingPool.PMAssign(pm, {"from": timelock })

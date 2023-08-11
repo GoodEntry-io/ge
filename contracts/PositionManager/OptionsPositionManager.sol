@@ -18,7 +18,6 @@ contract OptionsPositionManager is PositionManager {
   event ClosePosition(address indexed user, address indexed asset, uint amount, uint amount0, uint amount1);
   event LiquidatePosition(address indexed user, address indexed asset, uint amount, uint amount0, uint amount1);
   event ReducedPosition(address indexed user, address indexed asset, uint amount);
-  event Swap(address indexed user, address sourceAsset, uint sourceAmount, address targetAsset, uint targetAmount);
 
 
   /// @param roerouter Address of Roe whitelist router
@@ -324,7 +323,7 @@ contract OptionsPositionManager is PositionManager {
     }
     
     // Swap other token back to collateral: this allows to control exposure
-    if (user == msg.sender) swapTokens(poolId, collateralAsset == token0 ? token1 : token0, 0);
+    if (user == msg.sender) swapAll(poolId, collateralAsset == token0 ? token1 : token0);
   }
   
   
@@ -429,37 +428,23 @@ contract OptionsPositionManager is PositionManager {
   }
   
   
-  ////////////////////// SWAP
+  ////////////////////// HELPERS
   
   /// @notice Swap user assets; useful to change user risk profile
   /// @param poolId Id of the pool
   /// @param sourceAsset Asset to be swapped
-  /// @param amount of asset to swap - if 0, swap all
   /// @return received Amount of target token received
-  function swapTokens(uint poolId, address sourceAsset, uint amount) public returns (uint received) {
+  function swapAll(uint poolId, address sourceAsset) internal returns (uint received) {
     (ILendingPool LP, IPriceOracle oracle,IUniswapV2Router01 router, address token0, address token1) = getPoolAddresses(poolId);
     require(sourceAsset == token0 || sourceAsset == token1, "OPM: Invalid Swap Asset");
-    if (amount == 0) {
-      amount = ERC20(LP.getReserveData(sourceAsset).aTokenAddress).balanceOf(msg.sender);
-      if (amount == 0) return 0;
-    }
-    PMWithdraw(LP, msg.sender, sourceAsset, amount);
+    uint amount = ERC20(sourceAsset).balanceOf(address(this));
+    if (amount == 0) return 0;
 
     address[] memory path = new address[](2);
     path[0] = sourceAsset ;
     path[1] = sourceAsset == token0 ? token1 : token0;
     received = swapExactTokensForTokens(router, oracle, amount, path);
-    
-    cleanup(LP, msg.sender, token0);
-    cleanup(LP, msg.sender, token1);
-    emit Swap(msg.sender, path[0], amount, path[1], received);
   }
-  
-  
-  
-  
-  ////////////////////// HELPERS
-
   
   /// @notice Swaps assets for exact assets
   /// @param ammRouter AMM router
