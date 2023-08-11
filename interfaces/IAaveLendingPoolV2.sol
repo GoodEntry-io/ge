@@ -444,5 +444,7 @@ interface ILendingPool {
   function disableReserveAsCollateral(address, address) external;
 
   function setCap(address asset, uint256 supplyCap, uint256 borrowCap) external;
+  function supplyCap(address) external view returns (uint);
+  function borrowCap(address) external view returns (uint);
 }
 
