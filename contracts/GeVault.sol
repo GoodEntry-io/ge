@@ -11,7 +11,6 @@ import "../interfaces/IWETH.sol";
 import "./RangeManager.sol";
 import "./RoeRouter.sol";
 
-
 /**
 GeVault is a reblancing vault that holds TokenisableRanges tickers
 Functionalities:
@@ -251,6 +250,7 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
     require(token == address(token0) || token == address(token1), "GEV: Invalid Token");
     require(amount > 0 || msg.value > 0, "GEV: Deposit Zero");
     
+    uint vaultValueX8 = getTVL();    
     // Wrap if necessary and deposit here
     if (msg.value > 0){
       require(token == address(WETH), "GEV: Invalid Weth");
@@ -266,9 +266,9 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
     uint fee = amount * getAdjustedBaseFee(token == address(token0)) / 1e4;
     ERC20(token).safeTransfer(treasury, fee);
     uint valueX8 = oracle.getAssetPrice(token) * (amount - fee) / 10**ERC20(token).decimals();
-    require(tvlCap > valueX8 + getTVL(), "GEV: Max Cap Reached");
 
-    uint vaultValueX8 = getTVL();
+    require(tvlCap > valueX8 + vaultValueX8, "GEV: Max Cap Reached");
+
     uint tSupply = totalSupply();
     // initial liquidity at 1e18 token ~ $1
     if (tSupply == 0 || vaultValueX8 == 0)
@@ -390,6 +390,9 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   /// @notice Calculate the vault total ticks value
   /// @return valueX8 Total value of the vault with 8 decimals
   function getTVL() public view returns (uint valueX8){
+    valueX8 = token0.balanceOf(address(this)) * oracle.getAssetPrice(address(token0)) / 10**token0.decimals();
+    valueX8 += token1.balanceOf(address(this)) * oracle.getAssetPrice(address(token1)) / 10**token1.decimals();
+    
     for(uint k=0; k<ticks.length; k++){
       TokenisableRange t = ticks[k];
       uint bal = getTickBalance(k);
