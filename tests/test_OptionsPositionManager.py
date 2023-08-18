@@ -201,7 +201,6 @@ def prep_ranger(accounts, owner, timelock, lendingPool, weth, usdc, user, interf
     lendingPool.deposit(tr, tr.balanceOf(owner), owner, 0, {"from": owner})
   
 
-
 # Deposit collateral and open position
 def test_deploy(accounts, chain, pm, owner, timelock, lendingPool, OptionsPositionManager, roerouter):
   with brownie.reverts("Invalid address"): OptionsPositionManager.deploy( "0x0000000000000000000000000000000000000000", {"from": owner})
@@ -294,16 +293,16 @@ def test_buy_options(accounts, chain, pm, owner, timelock, lendingPool, weth, us
   with brownie.reverts("Not initiated by user"):
     pm.close(poolId, user, ticker0, 0, weth, {"from": owner} )
     
-
-  pm.close(poolId, user, ticker0, interface.ERC20(lendingPool.getReserveData(ticker0)[9]).balanceOf(user), weth, {"from": user} )
-  # repay more than the debt will just repay all
-  pm.close(poolId, user, ticker1, 1 + interface.ERC20(lendingPool.getReserveData(ticker1)[9]).balanceOf(user), weth, {"from": user} )
-  
+  print('debt tr0bef', interface.ERC20(lendingPool.getReserveData(ticker0)[9]).balanceOf(user) )
+  pm.close(poolId, user, ticker0, 0, weth, {"from": user} )
   print('debt tr0', interface.ERC20(lendingPool.getReserveData(ticker0)[9]).balanceOf(user) )
   assert interface.ERC20(lendingPool.getReserveData(ticker0)[9]).balanceOf(user) == 0
+  
+  print('debt tr1bef', interface.ERC20(lendingPool.getReserveData(ticker1)[9]).balanceOf(user) )
+  # repay more than the debt will just repay all
+  pm.close(poolId, user, ticker1, 2 * interface.ERC20(lendingPool.getReserveData(ticker1)[9]).balanceOf(user), weth, {"from": user} )
   print('debt tr1', interface.ERC20(lendingPool.getReserveData(ticker1)[9]).balanceOf(user) )
   assert interface.ERC20(lendingPool.getReserveData(ticker1)[9]).balanceOf(user) == 0
-
 
 
 def test_sell_fake_option(accounts, chain, pm, owner, timelock, lendingPool, weth, usdc, user, interface, router, oracle, TokenisableRange, OptionsPositionManager, roerouter):
@@ -340,7 +339,6 @@ def test_sell_option(pm, user, owner, timelock, lendingPool, weth, usdc, interfa
   pm.withdrawOptions(poolId, tr, oBal / 2, {"from": owner})
   assert nearlyEqual( oBal / 2, interface.ERC20( lendingPool.getReserveData(tr)[7] ).balanceOf(owner))
   
-
 
 def test_reduce(accounts, chain, pm, owner, timelock, lendingPool, weth, usdc, user, interface, oracle, contracts, TokenisableRange, prep_ranger, roerouter):
   tr, trb, r = contracts
@@ -408,7 +406,6 @@ def test_reduce(accounts, chain, pm, owner, timelock, lendingPool, weth, usdc, u
   # liquidate several assets at once
   liquidationAmount = 1e16
   l = pm.liquidate(poolId, user, [ticker0, ticker1], [liquidationAmount, liquidationAmount], usdc, {"from": liquidator} )
-
 
 
 def test_sandwich(accounts, chain, pm, owner, timelock, lendingPool, weth, usdc, user, interface, router, oracle, contracts, TokenisableRange, prep_ranger, config, OptionsPositionManager, roerouter):
@@ -497,4 +494,3 @@ def test_getTargetAmountFromOracle(owner, accounts, Test_OptionsPositionManager,
   
   res = t.test_getTargetAmountFromOracle(oracle, weth, 1e18, usdc)
   assert nearlyEqual(res * oracle.getAssetPrice(usdc) / 1e6, oracle.getAssetPrice(weth))
-  

@@ -260,14 +260,10 @@ contract OptionsPositionManager is PositionManager {
     require(collateralAsset == token0 || collateralAsset == token1, "OPM: Invalid Collateral Asset");
     uint amtA;
     uint amtB;
-    // Add dust to be sure debt reformed >= debt outstanding
-    debt = repayAmount + addDust(debtAsset, token0, token1);
     
-    // Claim fees first so that deposit will match exactly
-    TokenisableRange(debtAsset).claimFee();
     { //localize vars
-      (uint token0Amount, uint token1Amount) = TokenisableRange(debtAsset).getTokenAmounts(debt);
-      checkExpectedBalances(debtAsset, debt, token0Amount, token1Amount);
+      (uint token0Amount, uint token1Amount) = TokenisableRange(debtAsset).getTokenAmounts(repayAmount);
+      checkExpectedBalances(debtAsset, repayAmount, token0Amount, token1Amount);
       checkSetAllowance(token0, debtAsset, token0Amount);
       checkSetAllowance(token1, debtAsset, token1Amount);
       // If called by this contract himself this is a liquidation, skip that step
@@ -301,7 +297,7 @@ contract OptionsPositionManager is PositionManager {
         path[1] = token1;
         swapTokensForExactTokens(ammRouter, token1Amount - amtB, amtA, path); 
       }
-      debt = TokenisableRange(debtAsset).deposit(token0Amount, token1Amount);
+      debt = TokenisableRange(debtAsset).depositExactly(token0Amount, token1Amount, repayAmount);
     }
     checkSetAllowance(debtAsset, address(LP), debt);
     
@@ -519,19 +515,5 @@ contract OptionsPositionManager is PositionManager {
     (ERC20 t0, ) = TokenisableRange(tr).TOKEN0();
     (ERC20 t1, ) = TokenisableRange(tr).TOKEN1();
     require(token0 == address(t0) && token1 == address(t1), "OPM: Invalid Debt Asset");
-  }
-  
-  
-  /// @notice Calculate a dust amount such that any underlying token amount would be larger than 100 units
-  /// @param debtAsset The debt TR asset
-  /// @param token0 Underlying token
-  /// @param token1 Underlying token
-  function addDust(address debtAsset, address token0, address token1) internal returns (uint amount){
-    IAaveOracle oracle = TokenisableRange(debtAsset).ORACLE();
-    uint scale0 = 10**(20 - ERC20(token0).decimals()) * oracle.getAssetPrice(token0) / 1e8;
-    uint scale1 = 10**(20 - ERC20(token1).decimals()) * oracle.getAssetPrice(token1) / 1e8;
-    
-    if (scale0 > scale1) amount = scale0;
-    else amount = scale1;
   }
 }
