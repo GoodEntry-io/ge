@@ -214,8 +214,8 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
     require(totalSupply() > 0, "TR Closed"); 
     
     claimFee();
-    TOKEN0.token.transferFrom(msg.sender, address(this), n0);
-    TOKEN1.token.transferFrom(msg.sender, address(this), n1);
+    TOKEN0.token.safeTransferFrom(msg.sender, address(this), n0);
+    TOKEN1.token.safeTransferFrom(msg.sender, address(this), n1);
     TOKEN0.token.safeIncreaseAllowance(address(POS_MGR), n0);
     TOKEN1.token.safeIncreaseAllowance(address(POS_MGR), n1);
 
@@ -245,8 +245,8 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
     liquidity = liquidity + newLiquidity;
     
     _mint(msg.sender, lpAmt);
-    TOKEN0.token.safeTransfer( msg.sender, n0 - added0);
-    TOKEN1.token.safeTransfer( msg.sender, n1 - added1);
+    if (n0 > added0) TOKEN0.token.safeTransfer(msg.sender, n0 - added0);
+    if (n1 > added1) TOKEN1.token.safeTransfer(msg.sender, n1 - added1);
     emit Deposit(msg.sender, lpAmt);
   }
   
