@@ -99,6 +99,11 @@ contract RangeManager is ReentrancyGuard, Ownable {
     ASSET_1.safeIncreaseAllowance(tr, amount1);
     TokenisableRange(tr).init(amount0, amount1);
     ERC20(tr).safeTransfer(msg.sender, TokenisableRange(tr).balanceOf(address(this)));
+    
+    uint256 asset0_amt = ASSET_0.balanceOf(address(this));
+    uint256 asset1_amt = ASSET_1.balanceOf(address(this));
+    if (asset0_amt > 0) ASSET_0.safeTransfer(msg.sender, asset0_amt);
+    if (asset1_amt > 0) ASSET_1.safeTransfer(msg.sender, asset1_amt);
   }
 
 
@@ -203,7 +208,7 @@ contract RangeManager is ReentrancyGuard, Ownable {
     
     // Check that health factor is not put into liquidation / with buffer
     (,,,,,uint256 hf) = LENDING_POOL.getUserAccountData(msg.sender);
-    require(hf > 1.01e18, "Health factor is too low");
+    require(hf > 1e18, "Health factor is too low");
   }
 
 
