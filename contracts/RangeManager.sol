@@ -208,7 +208,7 @@ contract RangeManager is ReentrancyGuard, Ownable {
     
     // Check that health factor is not put into liquidation / with buffer
     (,,,,,uint256 hf) = LENDING_POOL.getUserAccountData(msg.sender);
-    require(hf > 1.01e18, "Health factor is too low");
+    require(hf > 1e18, "Health factor is too low");
   }
 
 
