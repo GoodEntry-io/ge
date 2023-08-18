@@ -229,7 +229,8 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
 
     if (token == address(WETH)){
       WETH.withdraw(bal);
-      payable(msg.sender).transfer(bal);
+      (bool success, ) = payable(msg.sender).call{value: bal}("");
+      require(success, "GEV: Error sending ETH");
     }
     else {
       ERC20(token).safeTransfer(msg.sender, bal);
