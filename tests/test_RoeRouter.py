@@ -59,8 +59,12 @@ def test_deprecate_pool(accounts, user, owner, roerouter):
   roerouter.addPool(LENDING_POOL_ADDRESSES_PROVIDER, USDC, WETH, AMMROUTER, {"from": owner})
   poollength = roerouter.getPoolsLength()
 
-  roerouter.deprecatePool(poollength - 1)
+  roerouter.setDeprecated(poollength - 1, True)
   assert roerouter.pools(poollength - 1)[4] == True
+  
+  roerouter.setDeprecated(poollength - 1, False)
+  assert roerouter.pools(poollength - 1)[4] == False
+  
 
 
 def test_update_treasury(accounts, user, owner, roerouter):
@@ -72,3 +76,12 @@ def test_update_treasury(accounts, user, owner, roerouter):
   roerouter.setTreasury(user, {"from": owner})
   assert roerouter.treasury() == user.address
     
+    
+def test_vault_addresses(accounts, user, owner, roerouter):
+  assert roerouter.getVault(WETH, USDC) == NULL
+  
+  GEV = "0xa82577af74ae9D450DC04dF62Fc5C14748a0B3Ae"
+  with brownie.reverts("Ownable: caller is not the owner"): roerouter.setVault(WETH, USDC, GEV, {"from": user})
+  with brownie.reverts("Invalid Order"):   roerouter.setVault(WETH, USDC, GEV, {"from": owner})
+  roerouter.setVault(USDC, WETH, GEV, {"from": owner})
+  roerouter.setVault(USDC, WETH, NULL, {"from": owner})
