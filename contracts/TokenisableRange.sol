@@ -227,25 +227,6 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
     claimFee();
     TOKEN0.token.transferFrom(msg.sender, address(this), n0);
     TOKEN1.token.transferFrom(msg.sender, address(this), n1);
-    
-    uint newFee0; 
-    uint newFee1;
-    // Calculate proportion of deposit that goes to pending fee pool, useful to deposit exact amount of liquidity and fully repay a position
-    // Cannot repay only one side, if fees are both 0, or if one side is missing, skip adding fees here
-      // if ( fee0+fee1 == 0 || (n0 == 0 && fee0 > 0) || (n1 == 0 && fee1 > 0) ) skip  
-      // DeMorgan: !( (n0 == 0 && fee0 > 0) || (n1 == 0 && fee1 > 0) ) = !(n0 == 0 && fee0 > 0) && !(n0 == 0 && fee1 > 0)
-    if ( fee0+fee1 > 0 && ( n0 > 0 || fee0 == 0) && ( n1 > 0 || fee1 == 0 ) ){
-      address pool = V3_FACTORY.getPool(address(TOKEN0.token), address(TOKEN1.token), feeTier * 100);
-      (uint160 sqrtPriceX96,,,,,,)  = IUniswapV3Pool(pool).slot0();
-      (uint256 token0Amount, uint256 token1Amount) = LiquidityAmounts.getAmountsForLiquidity( sqrtPriceX96, TickMath.getSqrtRatioAtTick(lowerTick), TickMath.getSqrtRatioAtTick(upperTick), liquidity);
-      if (token0Amount + fee0 > 0) newFee0 = n0 * fee0 / (token0Amount + fee0);
-      if (token1Amount + fee1 > 0) newFee1 = n1 * fee1 / (token1Amount + fee1);
-      fee0 += newFee0;
-      fee1 += newFee1; 
-      n0   -= newFee0;
-      n1   -= newFee1;
-    }
-
     TOKEN0.token.safeIncreaseAllowance(address(POS_MGR), n0);
     TOKEN1.token.safeIncreaseAllowance(address(POS_MGR), n1);
 
@@ -262,10 +243,7 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
     );
     
     uint256 feeLiquidity;
-
-    // Stack too deep, so localising some variables for feeLiquidity calculations 
-    // If we already clawed back fees earlier, do nothing, else we need to adjust returned liquidity
-    if ( newFee0 == 0 && newFee1 == 0 ){
+    if (fee0 > 0 || fee1 > 0){
       uint256 TOKEN0_PRICE = ORACLE.getAssetPrice(address(TOKEN0.token));
       uint256 TOKEN1_PRICE = ORACLE.getAssetPrice(address(TOKEN1.token));
       require (TOKEN0_PRICE > 0 && TOKEN1_PRICE > 0, "Invalid Oracle Price");
@@ -274,7 +252,6 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
       feeLiquidity = newLiquidity * ( (fee0 * TOKEN0_PRICE / 10 ** TOKEN0.decimals) + (fee1 * TOKEN1_PRICE / 10 ** TOKEN1.decimals) )   
                                     / ( (added0   * TOKEN0_PRICE / 10 ** TOKEN0.decimals) + (added1   * TOKEN1_PRICE / 10 ** TOKEN1.decimals) ); 
     }
-                                     
     lpAmt = totalSupply() * newLiquidity / (liquidity + feeLiquidity); 
     liquidity = liquidity + newLiquidity;
     
