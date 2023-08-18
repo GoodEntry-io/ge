@@ -166,6 +166,7 @@ contract V3Proxy is ReentrancyGuard, Ownable {
         amounts = new uint[](2);
         amounts[0] = ROUTER.exactOutputSingle(ISwapRouter.ExactOutputSingleParams(path[0], path[1], feeTier, address(this), deadline, amountOut, amountInMax, 0));         
         amounts[1] = amountOut; 
+        ogInAsset.safeTransfer(msg.sender, amountInMax - amounts[0]);
         ogInAsset.safeApprove(address(ROUTER), 0);
         IWETH9 weth = IWETH9(ROUTER.WETH9());
         acceptPayable = true;
