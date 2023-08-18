@@ -12,7 +12,7 @@ import "./lib/LiquidityAmounts.sol";
 import "./lib/TickMath.sol";
 import "./lib/Sqrt.sol";
 import "../interfaces/IAaveOracle.sol";
-import "../interfaces/IAaveOracle.sol";
+import "./RoeRouter.sol";
 
 
 /// @notice Tokenize a Uniswap V3 NFT position
@@ -60,6 +60,7 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
   IUniswapV3Factory constant public V3_FACTORY = IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984); 
   address constant public treasury = 0x22Cc3f665ba4C898226353B672c5123c58751692;
   uint constant public treasuryFee = 20;
+  address constant roerouter = 0x22Cc3f665ba4C898226353B672c5123c58751692;
 
 
   /// @notice Store range parameters
@@ -153,6 +154,8 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
   
   
   /// @notice Claim the accumulated Uniswap V3 trading fees
+  /// @dev In this version, bc compounding fees prevents depositing a fixed liquidity amount, fees arent compounded
+  /// but fully sent to a vault if it exists, else sent to treasury
   function claimFee() public {
     (uint256 newFee0, uint256 newFee1) = POS_MGR.collect( 
       INonfungiblePositionManager.CollectParams({
@@ -169,37 +172,20 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
     if (tf0 > 0) TOKEN0.token.safeTransfer(treasury, tf0);
     if (tf1 > 0) TOKEN1.token.safeTransfer(treasury, tf1);
     
-    fee0 = fee0 + newFee0 - tf0;
-    fee1 = fee1 + newFee1 - tf1;
-    
-    // Calculate expected balance,  
-    (uint256 bal0, uint256 bal1) = returnExpectedBalanceWithoutFees(0, 0);
-    
-    // If accumulated more than 1% worth of fees, compound by adding fees to Uniswap position
-    if ((fee0 * 100 > bal0 ) && (fee1 * 100 > bal1)) { 
-      TOKEN0.token.safeIncreaseAllowance(address(POS_MGR), fee0);
-      TOKEN1.token.safeIncreaseAllowance(address(POS_MGR), fee1);
-      (uint128 newLiquidity, uint256 added0, uint256 added1) = POS_MGR.increaseLiquidity(
-        INonfungiblePositionManager.IncreaseLiquidityParams({
-          tokenId: tokenId,
-          amount0Desired: fee0,
-          amount1Desired: fee1,
-          amount0Min: 0,
-          amount1Min: 0,
-          deadline: block.timestamp
-        })
-      );
-      // check slippage: validate against value since token amounts can move widely
-      uint token0Price = ORACLE.getAssetPrice(address(TOKEN0.token));
-      uint token1Price = ORACLE.getAssetPrice(address(TOKEN1.token));
-      uint addedValue = added0 * token0Price / 10**TOKEN0.decimals + added1 * token1Price / 10**TOKEN1.decimals;
-      uint totalValue =   bal0 * token0Price / 10**TOKEN0.decimals +   bal1 * token1Price / 10**TOKEN1.decimals;
-      uint liquidityValue = totalValue * newLiquidity / liquidity;
-      require(addedValue > liquidityValue * 95 / 100 && liquidityValue > addedValue * 95 / 100, "TR: Claim Fee Slippage");
-      fee0 -= added0;
-      fee1 -= added1;
-      liquidity = liquidity + newLiquidity;
+    address vault;
+    // Call vault address in a try/catch structure as it's defined as a constant, not available in testing
+    if (roerouter.code.length > 0) {
+      try RoeRouter(roerouter).getVault(address(TOKEN0.token), address(TOKEN0.token)) returns (address _vault) {
+        vault = _vault;
+      }
+      catch {}
     }
+    
+    if (vault == address(0x0)) vault = treasury; // if case vault doesnt exist send to treasury
+    tf0 = TOKEN0.token.balanceOf(address(this));
+    if (tf0 > 0) TOKEN0.token.safeTransfer(vault, tf0);
+    tf1 = TOKEN1.token.balanceOf(address(this));
+    if (tf1 > 0) TOKEN1.token.safeTransfer(vault, tf1);
     emit ClaimFees(newFee0, newFee1);
   }
   
@@ -208,7 +194,16 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
   /// @param n0 Amount of quote asset
   /// @param n1 Amount of base asset
   /// @return lpAmt Amount of LP tokens created
-  function deposit(uint256 n0, uint256 n1) external nonReentrant returns (uint256 lpAmt) {
+  function deposit(uint256 n0, uint256 n1) external returns (uint256 lpAmt) {
+    lpAmt = depositExactly(n0, n1, 0);
+  }
+  
+  
+  /// @notice Deposit assets and get exactly the expected liquidity
+  /// @dev If the returned liquidity is very small (=its underlying tokens are both 0), we can round the amount of
+  /// liquidity minted. It is possible to abuse this to inflate the supply, but the gain would be several orders of magnitude
+  /// lower that the necessary gas cost
+  function depositExactly(uint256 n0, uint256 n1, uint256 expectedAmount) public nonReentrant returns (uint256 lpAmt) {
     // Once all assets were withdrawn after initialisation, this is considered closed
     // Prevents TR oracle values from being too manipulatable by emptying the range and redepositing 
     require(totalSupply() > 0, "TR Closed"); 
@@ -244,6 +239,20 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
     lpAmt = totalSupply() * newLiquidity / (liquidity + feeLiquidity); 
     liquidity = liquidity + newLiquidity;
     
+    // Round added liquidity up to expectedAmount if the difference is dust
+    // ie. underlying amounts of liquidity difference is 0, or value is lower than 1 unit of token0 or token1
+    if (lpAmt < expectedAmount){
+      uint missingLiq = expectedAmount - lpAmt;
+      uint missingLiqValue = missingLiq * latestAnswer() / 1e18;
+      (uint u0, uint u1) = getTokenAmounts(missingLiq);
+      uint val0 = u0 * ORACLE.getAssetPrice(address(TOKEN0.token)) / 10**TOKEN0.decimals;
+      uint val1 = u1 * ORACLE.getAssetPrice(address(TOKEN1.token)) / 10**TOKEN1.decimals;
+      // missing liquidity has no value, or underlying amount is 1 or less (meaning some 1 unit rounding error on low decimal tokens)
+      if (missingLiqValue == 0 || (u0 <= 1 && u1 <= 1)){
+        lpAmt = expectedAmount;
+      }
+      (u0, u1) = getTokenAmountsExcludingFees(expectedAmount);
+    }
     _mint(msg.sender, lpAmt);
     if (n0 > added0) TOKEN0.token.safeTransfer(msg.sender, n0 - added0);
     if (n1 > added1) TOKEN1.token.safeTransfer(msg.sender, n1 - added1);
@@ -258,6 +267,8 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
   function withdraw(uint256 lp, uint256 amount0Min, uint256 amount1Min) external nonReentrant returns (uint256 removed0, uint256 removed1) {
     claimFee();
     uint removedLiquidity = uint(liquidity) * lp / totalSupply();
+    
+    _burn(msg.sender, lp);
     (removed0, removed1) = POS_MGR.decreaseLiquidity(
       INonfungiblePositionManager.DecreaseLiquidityParams({
         tokenId: tokenId,
@@ -278,18 +289,6 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
         })
       );
     }
-    // Handle uncompounded fees
-    if (fee0 > 0) {
-      TOKEN0.token.safeTransfer( msg.sender, fee0 * lp / totalSupply());
-      removed0 += fee0 * lp / totalSupply();
-      fee0 -= fee0 * lp / totalSupply();
-    } 
-    if (fee1 > 0) {
-      TOKEN1.token.safeTransfer(  msg.sender, fee1 * lp / totalSupply());
-      removed1 += fee1 * lp / totalSupply();
-      fee1 -= fee1 * lp / totalSupply();
-    }
-    _burn(msg.sender, lp);
     emit Withdraw(msg.sender, lp);
   }
   
@@ -341,15 +340,14 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
     address pool = V3_FACTORY.getPool(address(TOKEN0.token), address(TOKEN1.token), feeTier * 100);
     (uint160 sqrtPriceX96,,,,,,)  = IUniswapV3Pool(pool).slot0();
     (token0Amount, token1Amount) = LiquidityAmounts.getAmountsForLiquidity( sqrtPriceX96, TickMath.getSqrtRatioAtTick(lowerTick), TickMath.getSqrtRatioAtTick(upperTick),  uint128 ( uint(liquidity) * amount / totalSupply() ) );
-  }  
-  
-  
+  }
+
+
   /// @notice Return the underlying tokens amounts for a given TR balance
   /// @param amount Amount of tokens we want the underlying amounts for
-  function getTokenAmounts(uint amount) external view returns (uint token0Amount, uint token1Amount){
+  function getTokenAmounts(uint amount) public view returns (uint token0Amount, uint token1Amount){
     (token0Amount, token1Amount) = getTokenAmountsExcludingFees(amount);
     token0Amount += fee0 * amount / totalSupply();
     token1Amount += fee1 * amount / totalSupply();
   }
-
 }
