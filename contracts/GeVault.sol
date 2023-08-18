@@ -53,6 +53,7 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   uint public tvlCap = 1e12;
   
   /// CONSTANTS 
+  uint256 constant Q96 = 0x1000000000000000000000000;
   /// immutable keyword removed for coverage testing bug in brownie
   address public treasury;
   IUniswapV3Pool public uniswapPool;
@@ -228,7 +229,8 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
 
     if (token == address(WETH)){
       WETH.withdraw(bal);
-      payable(msg.sender).transfer(bal);
+      (bool success, ) = payable(msg.sender).call{value: bal}("");
+      require(success, "GEV: Error sending ETH");
     }
     else {
       ERC20(token).safeTransfer(msg.sender, bal);
@@ -367,12 +369,22 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   function poolMatchesOracle() public view returns (bool matches){
     (uint160 sqrtPriceX96,,,,,,) = uniswapPool.slot0();
     
-    uint decimals0 = token0.decimals();
-    uint decimals1 = token1.decimals();
-    uint priceX8 = 10**decimals0;
-    // Overflow if dont scale down the sqrtPrice before div 2*192
-    priceX8 = priceX8 * uint(sqrtPriceX96 / 2 ** 12) ** 2 * 1e8 / 2**168;
-    priceX8 = priceX8 / 10**decimals1;
+    uint token0Decimals = token0.decimals();
+    uint token1Decimals = token1.decimals();
+    uint priceX8;
+
+    // Based on https://github.com/rysk-finance/dynamic-hedging/blob/HOTFIX-14-08-23/packages/contracts/contracts/vendor/uniswap/RangeOrderUtils.sol
+    uint256 sqrtPrice = uint256(sqrtPriceX96);
+    if (sqrtPrice > Q96) {
+        uint256 sqrtP = FullMath.mulDiv(sqrtPrice, 10 ** token0Decimals, Q96);
+        priceX8 = FullMath.mulDiv(sqrtP, sqrtP, 10 ** token0Decimals);
+    } else {
+        uint256 numerator1 = FullMath.mulDiv(sqrtPrice, sqrtPrice, 1);
+        uint256 numerator2 = 10 ** token0Decimals;
+        priceX8 = FullMath.mulDiv(numerator1, numerator2, 1 << 192);
+    }
+    
+    priceX8 = priceX8 * 10**8 / 10**token1Decimals;
     uint oraclePrice = 1e8 * oracle.getAssetPrice(address(token0)) / oracle.getAssetPrice(address(token1));
     if (oraclePrice < priceX8 * 101 / 100 && oraclePrice > priceX8 * 99 / 100) matches = true;
   }
