@@ -10,6 +10,7 @@ import "./openzeppelin-solidity/contracts/utils/Strings.sol";
 import "./openzeppelin-solidity/contracts/security/ReentrancyGuard.sol";
 import "./lib/LiquidityAmounts.sol";
 import "./lib/TickMath.sol";
+import "./lib/Sqrt.sol";
 import "../interfaces/IAaveOracle.sol";
 import "../interfaces/IAaveOracle.sol";
 
@@ -60,18 +61,6 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
   address constant public treasury = 0x22Cc3f665ba4C898226353B672c5123c58751692;
   uint constant public treasuryFee = 20;
 
-  /// @notice Babylonian method for sqrt
-  /// @param x sqrt parameter
-  /// @return y Square root
-  function sqrt(uint x) internal pure returns (uint y) {
-      uint z = (x + 1) / 2;
-      y = x;
-      while (z < y) {
-          y = z;
-          z = (x / z + z) / 2;
-      }
-  }
-
 
   /// @notice Store range parameters
   /// @param _oracle Address of the IAaveOracle interface of the ROE lending pool
@@ -96,8 +85,8 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
     string memory quoteSymbol = asset0.symbol();
     string memory baseSymbol  = asset1.symbol();
         
-    int24 _upperTick = TickMath.getTickAtSqrtRatio( uint160( 2**48 * sqrt( (2 ** 96 * (10 ** TOKEN1.decimals)) * 1e10 / (uint256(startX10) * 10 ** TOKEN0.decimals) ) ) );
-    int24 _lowerTick = TickMath.getTickAtSqrtRatio( uint160( 2**48 * sqrt( (2 ** 96 * (10 ** TOKEN1.decimals)) * 1e10 / (uint256(endX10  ) * 10 ** TOKEN0.decimals) ) ) );
+    int24 _upperTick = TickMath.getTickAtSqrtRatio( uint160( 2**48 * Sqrt.sqrt( (2 ** 96 * (10 ** TOKEN1.decimals)) * 1e10 / (uint256(startX10) * 10 ** TOKEN0.decimals) ) ) );
+    int24 _lowerTick = TickMath.getTickAtSqrtRatio( uint160( 2**48 * Sqrt.sqrt( (2 ** 96 * (10 ** TOKEN1.decimals)) * 1e10 / (uint256(endX10  ) * 10 ** TOKEN0.decimals) ) ) );
     
     if (isTicker) { 
       feeTier   = 5;
@@ -313,7 +302,12 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
     if (TOKEN0_PRICE == 0) TOKEN0_PRICE = ORACLE.getAssetPrice(address(TOKEN0.token));
     if (TOKEN1_PRICE == 0) TOKEN1_PRICE = ORACLE.getAssetPrice(address(TOKEN1.token));
 
-    (amt0, amt1) = LiquidityAmounts.getAmountsForLiquidity( uint160( sqrt( (2 ** 192 * ((TOKEN0_PRICE * 10 ** TOKEN1.decimals) / TOKEN1_PRICE)) / ( 10 ** TOKEN0.decimals ) ) ), TickMath.getSqrtRatioAtTick(lowerTick), TickMath.getSqrtRatioAtTick(upperTick),  liquidity);
+    (amt0, amt1) = LiquidityAmounts.getAmountsForLiquidity(
+      uint160(Sqrt.sqrt((TOKEN0_PRICE * 10**TOKEN1.decimals * 2**96) / (TOKEN1_PRICE * 10**TOKEN0.decimals )) * 2**48),
+      TickMath.getSqrtRatioAtTick(lowerTick), 
+      TickMath.getSqrtRatioAtTick(upperTick),
+      liquidity
+    );
   }
     
     
