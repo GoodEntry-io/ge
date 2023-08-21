@@ -111,6 +111,7 @@ contract V3Proxy is ReentrancyGuard, Ownable {
 
     function swapExactTokensForTokens(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts) {
         require(path.length == 2, "Direct swap only");
+        require(msg.sender == to, "Swap to self only");
         ERC20 ogInAsset = ERC20(path[0]);
         ogInAsset.safeTransferFrom(msg.sender, address(this), amountIn);
         ogInAsset.safeApprove(address(ROUTER), amountIn);
@@ -123,6 +124,7 @@ contract V3Proxy is ReentrancyGuard, Ownable {
 
     function swapTokensForExactTokens(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts) {
         require(path.length == 2, "Direct swap only");
+        require(msg.sender == to, "Swap to self only");
         ERC20 ogInAsset = ERC20(path[0]);
         ogInAsset.safeTransferFrom(msg.sender, address(this), amountInMax);
         ogInAsset.safeApprove(address(ROUTER), amountInMax);
@@ -136,6 +138,7 @@ contract V3Proxy is ReentrancyGuard, Ownable {
 
     function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline) payable external returns (uint[] memory amounts) {
         require(path.length == 2, "Direct swap only");
+        require(msg.sender == to, "Swap to self only");
         require(path[0] == ROUTER.WETH9(), "Invalid path");
         amounts = new uint[](2);
         amounts[0] = msg.value;         
@@ -146,6 +149,7 @@ contract V3Proxy is ReentrancyGuard, Ownable {
     
     function swapETHForExactTokens(uint amountOut, address[] calldata path, address to, uint deadline) payable external returns (uint[] memory amounts) {
         require(path.length == 2, "Direct swap only");
+        require(msg.sender == to, "Swap to self only");
         require(path[0] == ROUTER.WETH9(), "Invalid path");
         amounts = new uint[](2);
         amounts[0] = ROUTER.exactOutputSingle{value: msg.value}(ISwapRouter.ExactOutputSingleParams(path[0], path[1], feeTier, msg.sender, deadline, amountOut, msg.value, 0));         
@@ -159,6 +163,7 @@ contract V3Proxy is ReentrancyGuard, Ownable {
     
     function swapTokensForExactETH(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline) payable external returns (uint[] memory amounts) {
         require(path.length == 2, "Direct swap only");
+        require(msg.sender == to, "Swap to self only");
         require(path[1] == ROUTER.WETH9(), "Invalid path");
         ERC20 ogInAsset = ERC20(path[0]);
         ogInAsset.safeTransferFrom(msg.sender, address(this), amountInMax);
@@ -178,6 +183,7 @@ contract V3Proxy is ReentrancyGuard, Ownable {
        
     function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) payable external returns (uint[] memory amounts) {
         require(path.length == 2, "Direct swap only");
+        require(msg.sender == to, "Swap to self only");
         require(path[1] == ROUTER.WETH9(), "Invalid path");
         ERC20 ogInAsset = ERC20(path[0]);
         ogInAsset.safeTransferFrom(msg.sender, address(this), amountIn);
