@@ -310,7 +310,7 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
   }
     
     
-  /// @notice Calculate the balance of underlying assets based on the assets price, excluding fees
+  /// @notice Calculate the balance of underlying assets based on the assets price, including fees
   function returnExpectedBalance(uint TOKEN0_PRICE, uint TOKEN1_PRICE) public view returns (uint256 amt0, uint256 amt1) {
     (amt0, amt1) = returnExpectedBalanceWithoutFees(TOKEN0_PRICE, TOKEN1_PRICE);
     amt0 += fee0;
