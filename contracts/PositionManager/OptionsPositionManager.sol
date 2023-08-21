@@ -199,10 +199,6 @@ contract OptionsPositionManager is PositionManager {
     (ILendingPool LP,,, address token0, address token1) = getPoolAddresses(poolId);
     
     uint[] memory flashtype = new uint[](options.length);
-    for (uint8 i = 0; i< options.length; ){
-      flashtype[i] = 0; // dont open debt for liquidations, need to repay
-      unchecked { i+=1; }
-    }
     LP.flashLoan( address(this), options, amounts, flashtype, msg.sender, params, 0);
 
     // send all tokens to liquidator
