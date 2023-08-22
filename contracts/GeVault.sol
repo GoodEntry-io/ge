@@ -388,7 +388,8 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   /// @param spender Spender
   /// @param amount Amount below which we need to approve the token spending
   function checkSetApprove(address token, address spender, uint amount) private {
-    if ( ERC20(token).allowance(address(this), spender) < amount ) ERC20(token).safeIncreaseAllowance(spender, type(uint256).max);
+    uint currentAllowance = ERC20(token).allowance(address(this), spender);
+    if (currentAllowance < amount) ERC20(token).safeIncreaseAllowance(spender, type(uint256).max - currentAllowance);
   }
   
   
