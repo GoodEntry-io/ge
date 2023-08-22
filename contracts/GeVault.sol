@@ -434,7 +434,12 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
     if (amount0 == 0 && amount1 == 0) return 0;
     checkSetApprove(address(token0), address(t), amount0);
     checkSetApprove(address(token1), address(t), amount1);
-    liquidity = t.deposit(amount0, amount1);
+    try t.deposit(amount0, amount1) returns (uint lpAmt){
+      liquidity = lpAmt;
+    }
+    catch {
+      return 0;
+    }
     
     uint bal = t.balanceOf(address(this));
     if (bal > 0){
