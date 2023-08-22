@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
 import "./openzeppelin-solidity/contracts/access/Ownable.sol";
@@ -40,9 +40,7 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   RangeManager rangeManager; 
   /// @notice Ticks properly ordered in ascending price order
   TokenisableRange[] public ticks;
-  
-  /// @notice Tracks the beginning of active ticks: the next 4 ticks are the active
-  uint public tickIndex; 
+
   /// @notice Pair tokens
   ERC20 public token0;
   ERC20 public token1;
@@ -252,7 +250,8 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
     require(token == address(token0) || token == address(token1), "GEV: Invalid Token");
     require(amount > 0 || msg.value > 0, "GEV: Deposit Zero");
     
-    uint vaultValueX8 = getTVL();    
+    uint vaultValueX8 = getTVL();   
+    uint adjBaseFee = getAdjustedBaseFee(token == address(token0));
     // Wrap if necessary and deposit here
     if (msg.value > 0){
       require(token == address(WETH), "GEV: Invalid Weth");
@@ -265,7 +264,7 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
     }
     
     // Send deposit fee to treasury
-    uint fee = amount * getAdjustedBaseFee(token == address(token0)) / 1e4;
+    uint fee = amount * adjBaseFee / 1e4;
     ERC20(token).safeTransfer(treasury, fee);
     uint valueX8 = oracle.getAssetPrice(token) * (amount - fee) / 10**ERC20(token).decimals();
 
@@ -293,19 +292,6 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
     if (supply == 0) return 0;
     uint vaultValue = getTVL();
     priceX8 = vaultValue * 1e18 / supply;
-  }
-  
-  
-  /// @notice Get vault underlying assets
-  function getReserves() public view returns (uint amount0, uint amount1){
-    for (uint k = 0; k < ticks.length; k++){
-      TokenisableRange t = ticks[k];
-      address aTick = lendingPool.getReserveData(address(t)).aTokenAddress;
-      uint bal = ERC20(aTick).balanceOf(address(this));
-      (uint amt0, uint amt1) = t.getTokenAmounts(bal);
-      amount0 += amt0;
-      amount1 += amt1;
-    }
   }
 
 
@@ -337,31 +323,38 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   
   /// @notice 
   function deployAssets() internal { 
+    if (ticks.length == 0) return;
     uint newTickIndex = getActiveTickIndex();
     uint availToken0 = token0.balanceOf(address(this));
     uint availToken1 = token1.balanceOf(address(this));
-    
-    // Check which is the main token
-    (uint amount0ft, uint amount1ft) = ticks[newTickIndex].getTokenAmountsExcludingFees(1e18);
-    uint tick0Index = newTickIndex;
-    uint tick1Index = newTickIndex + 2;
-    if (amount1ft > 0){
-      tick0Index = newTickIndex + 2;
-      tick1Index = newTickIndex;
-    }
-    
-    // Deposit into the ticks + into the LP
-    if (availToken0 > 0){
-      depositAndStash(ticks[tick0Index], availToken0 / 2, 0);
-      depositAndStash(ticks[tick0Index+1], availToken0 / 2, 0);
-    }
-    if (availToken1 > 0){
-      depositAndStash(ticks[tick1Index], 0, availToken1 / 2);
-      depositAndStash(ticks[tick1Index+1], 0, availToken1 / 2);
-    }
-    
-    if (newTickIndex != tickIndex) tickIndex = newTickIndex;
-    emit Rebalance(tickIndex);
+
+    // if base token is token0, ticks above only contain base token = token0 and ticks below only hold quote token = token1
+    if (newTickIndex > 1) 
+      depositAndStash(
+        ticks[newTickIndex-2], 
+        baseTokenIsToken0 ? 0 : availToken0 / 2,
+        baseTokenIsToken0 ? availToken1 / 2 : 0
+      );
+    if (newTickIndex > 0) 
+      depositAndStash(
+        ticks[newTickIndex-1], 
+        baseTokenIsToken0 ? 0 : availToken0 / 2,
+        baseTokenIsToken0 ? availToken1 / 2 : 0
+      );
+    if (newTickIndex < ticks.length) 
+      depositAndStash(
+        ticks[newTickIndex], 
+        baseTokenIsToken0 ? availToken0 / 2 : 0,
+        baseTokenIsToken0 ? 0 : availToken1 / 2
+      );
+    if (newTickIndex+1 < ticks.length) 
+      depositAndStash(
+        ticks[newTickIndex+1], 
+        baseTokenIsToken0 ? availToken0 / 2 : 0,
+        baseTokenIsToken0 ? 0 : availToken1 / 2
+      );
+
+    emit Rebalance(newTickIndex);
   }
   
   
@@ -402,32 +395,26 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   /// @notice Calculate the vault total ticks value
   /// @return valueX8 Total value of the vault with 8 decimals
   function getTVL() public view returns (uint valueX8){
-    valueX8 = token0.balanceOf(address(this)) * oracle.getAssetPrice(address(token0)) / 10**token0.decimals();
-    valueX8 += token1.balanceOf(address(this)) * oracle.getAssetPrice(address(token1)) / 10**token1.decimals();
-    
-    for(uint k=0; k<ticks.length; k++){
+    (,, valueX8) = getReserves();
+  }
+  
+  
+  /// @notice Get vault underlying assets
+  function getReserves() public view returns (uint amount0, uint amount1, uint valueX8){
+    amount0 = token0.balanceOf(address(this));
+    amount1 = token1.balanceOf(address(this));
+    for (uint k = 0; k < ticks.length; k++){
       TokenisableRange t = ticks[k];
-      uint bal = getTickBalance(k);
-      valueX8 += bal * t.latestAnswer() / 1e18;
+      address aTick = lendingPool.getReserveData(address(t)).aTokenAddress;
+      uint bal = ERC20(aTick).balanceOf(address(this));
+      (uint amt0, uint amt1) = t.getTokenAmounts(bal);
+      amount0 += amt0;
+      amount1 += amt1;
     }
-  }
-  
-  
-  /// @notice Deposit assets in a ticker, and the ticker in lending pool
-  /// @param t Tik address
-  /// @return liquidity The amount of ticker liquidity added
-  function depositAndStash(TokenisableRange t, uint amount0, uint amount1) internal returns (uint liquidity){
-    checkSetApprove(address(token0), address(t), amount0);
-    checkSetApprove(address(token1), address(t), amount1);
-    liquidity = t.deposit(amount0, amount1);
     
-    uint bal = t.balanceOf(address(this));
-    if (bal > 0){
-      checkSetApprove(address(t), address(lendingPool), bal);
-      lendingPool.deposit(address(t), bal, address(this), 0);
-    }
+    valueX8 = amount0 * oracle.getAssetPrice(address(token0)) / 10**token0.decimals() 
+            + amount1 * oracle.getAssetPrice(address(token1)) / 10**token1.decimals();
   }
-  
   
   /// @notice Get balance of tick deposited in GE
   /// @param index Tick index
@@ -439,17 +426,33 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   }
   
   
+  /// @notice Deposit assets in a ticker, and the ticker in lending pool
+  /// @param t Tik address
+  /// @return liquidity The amount of ticker liquidity added
+  function depositAndStash(TokenisableRange t, uint amount0, uint amount1) internal returns (uint liquidity){
+    if (amount0 == 0 && amount1 == 0) return 0;
+    checkSetApprove(address(token0), address(t), amount0);
+    checkSetApprove(address(token1), address(t), amount1);
+    liquidity = t.deposit(amount0, amount1);
+    
+    uint bal = t.balanceOf(address(this));
+    if (bal > 0){
+      checkSetApprove(address(t), address(lendingPool), bal);
+      lendingPool.deposit(address(t), bal, address(this), 0);
+    }
+  }
+
+  
   /// @notice Return first valid tick
   function getActiveTickIndex() public view returns (uint activeTickIndex) {
-    if (ticks.length >= 5){
-      // looking for index at which the underlying asset differs from the next tick
-      for (activeTickIndex = 0; activeTickIndex < ticks.length - 3; activeTickIndex++){
-        (uint amt0, uint amt1) = ticks[activeTickIndex+1].getTokenAmountsExcludingFees(1e18);
-        (uint amt0n, uint amt1n) = ticks[activeTickIndex+2].getTokenAmountsExcludingFees(1e18);
-        if ( (amt0 == 0 && amt0n > 0) || (amt1 == 0 && amt1n > 0) )
-          break;
-      }
+    // loop on all ticks, if underlying is only base token then we are above, and tickIndex is 2 below
+    for (uint tickIndex = 0; tickIndex < ticks.length; tickIndex++){
+      (uint amt0, uint amt1) = ticks[tickIndex].getTokenAmountsExcludingFees(1e18);
+      // found a tick that's above price (ie its only underlying is the base token)
+      if( (baseTokenIsToken0 && amt0 == 0) || (!baseTokenIsToken0 && amt0 == 0) ) return tickIndex;
     }
+    // all ticks are below price
+    return ticks.length;
   }
 
 
@@ -458,7 +461,7 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   /// @dev Simple linear model: from baseFeeX4 / 2 to baseFeeX4 * 2
   /// @dev Call before withdrawing from ticks or reserves will both be 0
   function getAdjustedBaseFee(bool increaseToken0) public view returns (uint adjustedBaseFeeX4) {
-    (uint res0, uint res1) = getReserves();
+    (uint res0, uint res1, ) = getReserves();
     uint value0 = res0 * oracle.getAssetPrice(address(token0)) / 10**token0.decimals();
     uint value1 = res1 * oracle.getAssetPrice(address(token1)) / 10**token1.decimals();
 
