@@ -36,6 +36,7 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   event SetTreasury(address treasury);
   event SetFee(uint baseFeeX4);
   event SetTvlCap(uint tvlCap);
+  event SetLiquidityPerTick(uint8 liquidityPerTick);
 
   RangeManager rangeManager; 
   /// @notice Ticks properly ordered in ascending price order
@@ -57,7 +58,8 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   IUniswapV3Pool public uniswapPool;
   ILendingPool public lendingPool;
   IPriceOracle public oracle;
-  uint public constant nearbyRanges = 2;
+  // Split underlying liquidity on X ticks below and X above current price. More volatile assets would benefit from being spread out
+  uint public liquidityPerTick = 3;
   IWETH public WETH;
   bool public baseTokenIsToken0;
   
@@ -106,6 +108,15 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   function setTreasury(address newTreasury) public onlyOwner { 
     treasury = newTreasury; 
     emit SetTreasury(newTreasury);
+  }  
+  
+  
+  /// @notice Set liquidityPerTick (how much of assets each tick gets)
+  /// @param _liquidityPerTick proportion of liquidity in each nearby tick
+  function setLiquidityPerTick(uint8 _liquidityPerTick) public onlyOwner { 
+    require(_liquidityPerTick < 5, "GEV: Invalid ");
+    liquidityPerTick = uint(_liquidityPerTick); 
+    emit SetLiquidityPerTick(_liquidityPerTick);
   }
 
 
@@ -332,26 +343,26 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
     if (newTickIndex > 1) 
       depositAndStash(
         ticks[newTickIndex-2], 
-        baseTokenIsToken0 ? 0 : availToken0 / 2,
-        baseTokenIsToken0 ? availToken1 / 2 : 0
+        baseTokenIsToken0 ? 0 : availToken0 / liquidityPerTick,
+        baseTokenIsToken0 ? availToken1 / liquidityPerTick : 0
       );
     if (newTickIndex > 0) 
       depositAndStash(
         ticks[newTickIndex-1], 
-        baseTokenIsToken0 ? 0 : availToken0 / 2,
-        baseTokenIsToken0 ? availToken1 / 2 : 0
+        baseTokenIsToken0 ? 0 : availToken0 / liquidityPerTick,
+        baseTokenIsToken0 ? availToken1 / liquidityPerTick : 0
       );
     if (newTickIndex < ticks.length) 
       depositAndStash(
         ticks[newTickIndex], 
-        baseTokenIsToken0 ? availToken0 / 2 : 0,
-        baseTokenIsToken0 ? 0 : availToken1 / 2
+        baseTokenIsToken0 ? availToken0 / liquidityPerTick : 0,
+        baseTokenIsToken0 ? 0 : availToken1 / liquidityPerTick
       );
     if (newTickIndex+1 < ticks.length) 
       depositAndStash(
         ticks[newTickIndex+1], 
-        baseTokenIsToken0 ? availToken0 / 2 : 0,
-        baseTokenIsToken0 ? 0 : availToken1 / 2
+        baseTokenIsToken0 ? availToken0 / liquidityPerTick : 0,
+        baseTokenIsToken0 ? 0 : availToken1 / liquidityPerTick
       );
 
     emit Rebalance(newTickIndex);
