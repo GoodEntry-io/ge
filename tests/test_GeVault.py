@@ -390,7 +390,7 @@ def test_rebalance_down(accounts, interface, weth, usdc, owner, gevault, oracle,
   gevault.deposit(weth, 1e18, {"from": owner})
 
   # initially the tickIndex is 1
-  assert gevault.getActiveTickIndex() == 1
+  assert gevault.getActiveTickIndex() == 3
   
   # move price downward by dumping much WETH
   aaveUSDC = accounts.at(AAVE_USDC, force=True)
@@ -411,7 +411,7 @@ def test_rebalance_down(accounts, interface, weth, usdc, owner, gevault, oracle,
     print('bal', k, interface.ERC20(tkp).balanceOf(gevault))
 
   # we moved 1 tick down so new lower tick should be 0
-  assert gevault.getActiveTickIndex() == 0
+  assert gevault.getActiveTickIndex() == 2
   
   # failure bc price moved, possible sandwich attack
   with brownie.reverts("GEV: Oracle Error"): gevault.rebalance({"from": owner})
@@ -438,7 +438,7 @@ def test_rebalance_up(accounts, interface, weth, usdc, owner, gevault, oracle, r
   gevault.deposit(weth, 1e18, {"from": owner})
 
   # initially the tickIndex is 1
-  assert gevault.getActiveTickIndex() == 1
+  assert gevault.getActiveTickIndex() == 3
   
   # move price upward by buying much WETH
   aaveUSDC = accounts.at(AAVE_USDC, force=True)
@@ -458,7 +458,7 @@ def test_rebalance_up(accounts, interface, weth, usdc, owner, gevault, oracle, r
     print('bal', k, interface.ERC20(tkp).balanceOf(gevault))
 
   # we moved 1 tick up so new lower tick should be 2
-  assert gevault.getActiveTickIndex() == 2
+  assert gevault.getActiveTickIndex() == 4
 
   # failure bc price moved, possible sandwich attack
   with brownie.reverts("GEV: Oracle Error"): gevault.rebalance({"from": owner})
@@ -486,8 +486,8 @@ def test_rebalance_with_debt(accounts, interface, weth, usdc, owner, user, gevau
   weth.approve(gevault, 2**256-1, {"from": owner})
   gevault.deposit(weth, 1e18, {"from": owner})
 
-  # initially the tickIndex is 1
-  assert gevault.getActiveTickIndex() == 1
+  # initially the tickIndex is 3
+  assert gevault.getActiveTickIndex() == 3
   
   # user borrows some of the 1st tick
   t1 = gevault.ticks(1)
@@ -511,7 +511,7 @@ def test_rebalance_with_debt(accounts, interface, weth, usdc, owner, user, gevau
     print('bal', k, gevault.getTickBalance(k))
 
   # we moved 1 tick up so new lower tick should be 2
-  assert gevault.getActiveTickIndex() == 2
+  assert gevault.getActiveTickIndex() == 4
 
   # failure bc price moved, possible sandwich attack
   with brownie.reverts("GEV: Oracle Error"): gevault.rebalance({"from": owner})
