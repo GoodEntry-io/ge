@@ -59,7 +59,8 @@ contract RangeManager is ReentrancyGuard, Ownable {
     require(start < end, "Range invalid");
     uint256 len = stepList.length;
     for (uint i = 0; i < len; i++) {
-      if (start >= stepList[i].end || end <= stepList[i].start) {
+      Step memory stepList_ = stepList[i];
+      if (start >= stepList_.end || end <= stepList_.start) {
         continue;
       }
       revert("Range overlap");
@@ -71,7 +72,7 @@ contract RangeManager is ReentrancyGuard, Ownable {
   /// @param endX10 Range high price scaled by 1e10
   /// @param startName Name of the range lower bound 
   /// @param endName Name of the range higher bound
-  function generateRange(uint128 startX10, uint128 endX10, string memory startName, string memory endName, address beacon) external onlyOwner {
+  function generateRange(uint128 startX10, uint128 endX10, string calldata startName, string calldata endName, address beacon) external onlyOwner {
     require(beacon != address(0x0), "Invalid beacon");
     checkNewRange(startX10, endX10);
     stepList.push( Step(startX10, endX10) );

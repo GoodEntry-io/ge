@@ -8,7 +8,9 @@ import "./openzeppelin-solidity/contracts/security/ReentrancyGuard.sol";
 import "../interfaces/IAaveLendingPoolV2.sol";
 import "../interfaces/IUniswapV3Pool.sol";
 import "../interfaces/IWETH.sol";
+import "../interfaces/IPriceOracle.sol";
 import "./RoeRouter.sol";
+import "./TokenisableRange.sol";
 
 /**
 GeVault is a reblancing vault that holds TokenisableRanges tickers
@@ -40,26 +42,26 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   /// @notice Ticks properly ordered in ascending price order
   TokenisableRange[] public ticks;
 
+  /// immutable keyword removed for coverage testing bug in brownie
   /// @notice Pair tokens
-  ERC20 public token0;
-  ERC20 public token1;
+  ERC20 public immutable token0;
+  ERC20 public immutable token1;
   bool public isEnabled = true;
+  bool public baseTokenIsToken0;
   /// @notice Pool base fee 
-  uint public baseFeeX4 = 20;
+  uint24 public baseFeeX4 = 20;
+  // Split underlying liquidity on X ticks below and X above current price. More volatile assets would benefit from being spread out
+  uint8 public liquidityPerTick = 3;
   /// @notice Max vault TVL with 8 decimals
-  uint public tvlCap = 1e12;
+  uint96 public tvlCap = 1e12;
+  address public treasury;
   
   /// CONSTANTS 
   uint256 constant Q96 = 0x1000000000000000000000000;
-  /// immutable keyword removed for coverage testing bug in brownie
-  address public treasury;
   IUniswapV3Pool public uniswapPool;
   ILendingPool public lendingPool;
   IPriceOracle public oracle;
-  // Split underlying liquidity on X ticks below and X above current price. More volatile assets would benefit from being spread out
-  uint public liquidityPerTick = 3;
   IWETH public WETH;
-  bool public baseTokenIsToken0;
   
 
   constructor(
@@ -85,9 +87,9 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
     lendingPool = ILendingPool(ILendingPoolAddressesProvider(lpap).getLendingPool());
     oracle = IPriceOracle(ILendingPoolAddressesProvider(lpap).getPriceOracle());
     treasury = _treasury;
+    baseTokenIsToken0 = _baseTokenIsToken0;
     uniswapPool = IUniswapV3Pool(_uniswapPool);
     WETH = IWETH(weth);
-    baseTokenIsToken0 = _baseTokenIsToken0;
   }
   
   
@@ -113,7 +115,7 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   /// @param _liquidityPerTick proportion of liquidity in each nearby tick
   function setLiquidityPerTick(uint8 _liquidityPerTick) public onlyOwner { 
     require(_liquidityPerTick > 1, "GEV: Invalid LPT");
-    liquidityPerTick = uint(_liquidityPerTick); 
+    liquidityPerTick = _liquidityPerTick; 
     emit SetLiquidityPerTick(_liquidityPerTick);
   }
 
@@ -187,15 +189,15 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   
   /// @notice Set the base fee
   /// @param newBaseFeeX4 New base fee in E4
-  function setBaseFee(uint newBaseFeeX4) public onlyOwner {
-  require(newBaseFeeX4 < 1e4, "GEV: Invalid Base Fee");
+  function setBaseFee(uint24 newBaseFeeX4) public onlyOwner {
+    require(newBaseFeeX4 < 1e4, "GEV: Invalid Base Fee");
     baseFeeX4 = newBaseFeeX4;
     emit SetFee(newBaseFeeX4);
   }
   
   /// @notice Set the TVL cap
   /// @param newTvlCap New TVL cap
-  function setTvlCap(uint newTvlCap) public onlyOwner {
+  function setTvlCap(uint96 newTvlCap) public onlyOwner {
     tvlCap = newTvlCap;
     emit SetTvlCap(newTvlCap);
   }
@@ -254,10 +256,10 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   /// @param amount Amount of token deposited
   function deposit(address token, uint amount) public payable nonReentrant returns (uint liquidity) 
   {
-    require(isEnabled, "GEV: Pool Disabled");
-    require(poolMatchesOracle(), "GEV: Oracle Error");
-    require(token == address(token0) || token == address(token1), "GEV: Invalid Token");
     require(amount > 0 || msg.value > 0, "GEV: Deposit Zero");
+    require(isEnabled, "GEV: Pool Disabled");
+    require(token == address(token0) || token == address(token1), "GEV: Invalid Token");
+    require(poolMatchesOracle(), "GEV: Oracle Error");
     
     uint vaultValueX8 = getTVL();   
     uint adjBaseFee = getAdjustedBaseFee(token == address(token0));
@@ -476,18 +478,19 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   /// @dev Simple linear model: from baseFeeX4 / 2 to baseFeeX4 * 3 / 2
   /// @dev Call before withdrawing from ticks or reserves will both be 0
   function getAdjustedBaseFee(bool increaseToken0) public view returns (uint adjustedBaseFeeX4) {
+    uint baseFeeX4_ = uint(baseFeeX4);
     (uint res0, uint res1, ) = getReserves();
     uint value0 = res0 * oracle.getAssetPrice(address(token0)) / 10**token0.decimals();
     uint value1 = res1 * oracle.getAssetPrice(address(token1)) / 10**token1.decimals();
 
     if (increaseToken0)
-      adjustedBaseFeeX4 = baseFeeX4 * value0 / (value1 + 1);
+      adjustedBaseFeeX4 = baseFeeX4_ * value0 / (value1 + 1);
     else
-      adjustedBaseFeeX4 = baseFeeX4 * value1 / (value0 + 1);
+      adjustedBaseFeeX4 = baseFeeX4_ * value1 / (value0 + 1);
 
     // Adjust from -50% to +50%
-    if (adjustedBaseFeeX4 < baseFeeX4 / 2) adjustedBaseFeeX4 = baseFeeX4 / 2;
-    if (adjustedBaseFeeX4 > baseFeeX4 * 3 / 2) adjustedBaseFeeX4 = baseFeeX4 * 3 / 2;
+    if (adjustedBaseFeeX4 < baseFeeX4_ / 2) adjustedBaseFeeX4 = baseFeeX4_ / 2;
+    if (adjustedBaseFeeX4 > baseFeeX4_ * 3 / 2) adjustedBaseFeeX4 = baseFeeX4_ * 3 / 2;
   }
 
 

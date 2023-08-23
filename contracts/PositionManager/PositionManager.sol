@@ -20,7 +20,7 @@ contract PositionManager is IFlashLoanReceiver {
   ////////////////////// VARS
   ILendingPoolAddressesProvider public ADDRESSES_PROVIDER; // IFlashLoanReceiver  requirement
   ILendingPool public LENDING_POOL; // IFlashLoanReceiver  requirement
-  RoeRouter public ROEROUTER; 
+  RoeRouter public immutable ROEROUTER; 
   
   
   ////////////////////// GENERAL   

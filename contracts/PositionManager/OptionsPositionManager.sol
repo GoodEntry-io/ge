@@ -157,9 +157,9 @@ contract OptionsPositionManager is PositionManager {
   /// @dev Because tickers are one coin or the other depending on the price, one can only buy OTM options. You can get ITM put by buying OTM call and swapping, or get ITM call by buying OTM put and swapping. If you wanna swap, set sourceSwap to the asset you *dont* want, otherwise must be address(0x0)
   function buyOptions(
     uint poolId, 
-    address[] memory options, 
-    uint[] memory amounts, 
-    address[] memory sourceSwap
+    address[] calldata options, 
+    uint[] calldata amounts, 
+    address[] calldata sourceSwap
   )
     external
   {
@@ -188,8 +188,8 @@ contract OptionsPositionManager is PositionManager {
   function liquidate (
     uint poolId, 
     address user,
-    address[] memory options, 
-    uint[] memory amounts,
+    address[] calldata options, 
+    uint[] calldata amounts,
     address collateralAsset
   )
     external
@@ -507,7 +507,7 @@ contract OptionsPositionManager is PositionManager {
   /// @param tr Tokenisable range
   /// @param token0 Underlying token 0
   /// @param token1 Underlying token 1
-  function sanityCheckUnderlying(address tr, address token0, address token1) internal {
+  function sanityCheckUnderlying(address tr, address token0, address token1) internal view {
     (ERC20 t0, ) = TokenisableRange(tr).TOKEN0();
     (ERC20 t1, ) = TokenisableRange(tr).TOKEN1();
     require(token0 == address(t0) && token1 == address(t1), "OPM: Invalid Debt Asset");

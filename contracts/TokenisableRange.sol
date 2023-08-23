@@ -29,6 +29,7 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
   int24 public lowerTick;
   int24 public upperTick;
   uint24 public feeTier;
+  uint128 public liquidity;
   
   uint256 public tokenId;
   uint256 public fee0;
@@ -50,7 +51,6 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
   ProxyState public status;
   address private creator;
   
-  uint128 public liquidity;
   // @notice deprecated, keep to avoid beacon storage slot overwriting errors
   address public TREASURY_DEPRECATED = 0x22Cc3f665ba4C898226353B672c5123c58751692;
   uint public treasuryFee_deprecated = 20;
@@ -233,8 +233,10 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
       require (TOKEN0_PRICE > 0 && TOKEN1_PRICE > 0, "Invalid Oracle Price");
       // Calculate the equivalent liquidity amount of the non-yet compounded fees
       // Assume linearity for liquidity in same tick range; calculate feeLiquidity equivalent and consider it part of base liquidity 
-      feeLiquidity = newLiquidity * ( (fee0 * TOKEN0_PRICE / 10 ** TOKEN0.decimals) + (fee1 * TOKEN1_PRICE / 10 ** TOKEN1.decimals) )   
-                                    / ( (added0   * TOKEN0_PRICE / 10 ** TOKEN0.decimals) + (added1   * TOKEN1_PRICE / 10 ** TOKEN1.decimals) ); 
+      uint token0decimals = TOKEN0.decimals;
+      uint token1decimals = TOKEN1.decimals;
+      feeLiquidity = newLiquidity * ( (fee0 * TOKEN0_PRICE / 10 ** token0decimals) + (fee1 * TOKEN1_PRICE / 10 ** token1decimals) )   
+                                    / ( (added0   * TOKEN0_PRICE / 10 ** token0decimals) + (added1   * TOKEN1_PRICE / 10 ** token1decimals) ); 
     }
     lpAmt = totalSupply() * newLiquidity / (liquidity + feeLiquidity); 
     liquidity = liquidity + newLiquidity;
