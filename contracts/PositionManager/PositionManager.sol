@@ -16,6 +16,8 @@ import "../RoeRouter.sol";
 
 contract PositionManager is IFlashLoanReceiver {
   using SafeERC20 for ERC20;
+  
+  uint constant UINT256MAX = type(uint256).max;
 
   ////////////////////// VARS
   ILendingPoolAddressesProvider public ADDRESSES_PROVIDER; // IFlashLoanReceiver  requirement
@@ -79,7 +81,7 @@ contract PositionManager is IFlashLoanReceiver {
   /// @param amount Minimum allowance needed
   function checkSetAllowance(address token, address spender, uint amount) internal {
     uint currentAllowance = ERC20(token).allowance(address(this), spender);
-    if (currentAllowance < amount) ERC20(token).safeIncreaseAllowance(spender, type(uint256).max - currentAllowance);
+    if (currentAllowance < amount) ERC20(token).safeIncreaseAllowance(spender, UINT256MAX - currentAllowance);
   }
   
   

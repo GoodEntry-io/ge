@@ -61,6 +61,7 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
   address constant public treasury = 0x22Cc3f665ba4C898226353B672c5123c58751692;
   uint constant public treasuryFee = 20;
   address constant roerouter = 0x22Cc3f665ba4C898226353B672c5123c58751692;
+  uint128 constant UINT128MAX = type(uint128).max;
 
 
   /// @notice Store range parameters
@@ -161,8 +162,8 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
       INonfungiblePositionManager.CollectParams({
         tokenId: tokenId,
         recipient: address(this),
-        amount0Max: type(uint128).max,
-        amount1Max: type(uint128).max
+        amount0Max: UINT128MAX,
+        amount1Max: UINT128MAX
       })
     );
     // If there's no new fees generated, skip compounding logic;

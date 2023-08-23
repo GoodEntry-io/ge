@@ -47,7 +47,7 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   ERC20 public immutable token0;
   ERC20 public immutable token1;
   bool public isEnabled = true;
-  bool public baseTokenIsToken0;
+  bool private baseTokenIsToken0;
   /// @notice Pool base fee 
   uint24 public baseFeeX4 = 20;
   // Split underlying liquidity on X ticks below and X above current price. More volatile assets would benefit from being spread out
@@ -56,13 +56,14 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   uint96 public tvlCap = 1e12;
   address public treasury;
   
-  /// CONSTANTS 
-  uint256 constant Q96 = 0x1000000000000000000000000;
   IUniswapV3Pool public uniswapPool;
   ILendingPool public lendingPool;
   IPriceOracle public oracle;
-  IWETH public WETH;
+  IWETH private WETH;
   
+  /// CONSTANTS 
+  uint256 constant Q96 = 0x1000000000000000000000000;
+  uint constant UINT256MAX = type(uint256).max;
 
   constructor(
     address _treasury, 
@@ -400,7 +401,7 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   /// @param amount Amount below which we need to approve the token spending
   function checkSetApprove(address token, address spender, uint amount) private {
     uint currentAllowance = ERC20(token).allowance(address(this), spender);
-    if (currentAllowance < amount) ERC20(token).safeIncreaseAllowance(spender, type(uint256).max - currentAllowance);
+    if (currentAllowance < amount) ERC20(token).safeIncreaseAllowance(spender, UINT256MAX - currentAllowance);
   }
   
   
