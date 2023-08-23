@@ -8,7 +8,6 @@ import "./openzeppelin-solidity/contracts/security/ReentrancyGuard.sol";
 import "../interfaces/IAaveLendingPoolV2.sol";
 import "../interfaces/IUniswapV3Pool.sol";
 import "../interfaces/IWETH.sol";
-import "./RangeManager.sol";
 import "./RoeRouter.sol";
 
 /**
@@ -38,7 +37,6 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   event SetTvlCap(uint tvlCap);
   event SetLiquidityPerTick(uint8 liquidityPerTick);
 
-  RangeManager rangeManager; 
   /// @notice Ticks properly ordered in ascending price order
   TokenisableRange[] public ticks;
 
@@ -114,7 +112,7 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   /// @notice Set liquidityPerTick (how much of assets each tick gets)
   /// @param _liquidityPerTick proportion of liquidity in each nearby tick
   function setLiquidityPerTick(uint8 _liquidityPerTick) public onlyOwner { 
-    require(_liquidityPerTick < 5, "GEV: Invalid ");
+    require(_liquidityPerTick > 1, "GEV: Invalid LPT");
     liquidityPerTick = uint(_liquidityPerTick); 
     emit SetLiquidityPerTick(_liquidityPerTick);
   }
@@ -475,7 +473,7 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
 
   /// @notice Get deposit fee
   /// @param increaseToken0 Whether (token0 added || token1 removed) or not
-  /// @dev Simple linear model: from baseFeeX4 / 2 to baseFeeX4 * 2
+  /// @dev Simple linear model: from baseFeeX4 / 2 to baseFeeX4 * 3 / 2
   /// @dev Call before withdrawing from ticks or reserves will both be 0
   function getAdjustedBaseFee(bool increaseToken0) public view returns (uint adjustedBaseFeeX4) {
     (uint res0, uint res1, ) = getReserves();
