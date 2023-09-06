@@ -215,7 +215,6 @@ def test_deploy(accounts, chain, pm, owner, timelock, lendingPool, GeVault, roer
   assert g.latestAnswer() == 0
   
   
-# Deploy contract
 def test_push_overlap(accounts, chain, pm, owner, timelock, lendingPool, gevault, roerouter):
   first_tick = gevault.ticks(0)
   with brownie.reverts("GEV: Push Tick Overlap"): gevault.pushTick(first_tick, {"from": owner})
@@ -557,3 +556,44 @@ def test_fees(accounts, weth, usdc, owner, lendingPool, gevault, oracle, Tokenis
   print("fees", gevault.getAdjustedBaseFee(False), baseFee, baseFee / 1.2)
   assert gevault.getAdjustedBaseFee(False) == baseFee / 1.2
 
+
+def test_migration_token(gevault, GeVault, owner, timelock, roerouter, MigrateVault, usdc, weth):
+  gevault.setBaseFee(0, {"from": owner})
+  usdc.approve(gevault, 2**256-1, {"from": owner})
+  gevault.deposit(usdc, 1000e6, {"from": owner})
+  liq = gevault.balanceOf(owner)
+
+  gevault2 = GeVault.deploy(TREASURY, roerouter, UNISWAPPOOLV3, 0, "GeVault WETHUSDC", "GEV-ETHUSDC", WETH, False, {"from": owner})
+  gevault2.setBaseFee(0, {"from": owner})
+  mv = MigrateVault.deploy(WETH, {"from": owner})
+  (bt0, bt1, btvl) = gevault.getReserves()
+
+  with brownie.reverts("ERC20: transfer amount exceeds allowance"): mv.migrate(1e18, USDC, gevault, gevault2, {"from": owner})
+  gevault.approve(mv, 2**256-1, {"from": owner})
+  mv.migrate(1e18, USDC, gevault, gevault2, {"from": owner})
+  
+  (at0, at1, atvl) = gevault2.getReserves()
+  (at01, at11, atvl0) = gevault.getReserves()
+  assert abs(atvl + atvl0 - btvl) <= 200 # bc 1 unit of USDC is ~100 since tvl is 8 decimals, and 1 unit USDC bc of rounding from uniswap values (for each pool)
+  assert gevault2.balanceOf(owner) == gevault2.totalSupply()
+
+
+def test_migration_eth(gevault, GeVault, owner, timelock, roerouter, MigrateVault, usdc, weth):
+  gevault.setBaseFee(0, {"from": owner})
+  weth.approve(gevault, 2**256-1, {"from": owner})
+  gevault.deposit(weth, 1e18, {"from": owner})
+  liq = gevault.balanceOf(owner)
+
+  gevault2 = GeVault.deploy(TREASURY, roerouter, UNISWAPPOOLV3, 0, "GeVault WETHUSDC", "GEV-ETHUSDC", WETH, False, {"from": owner})
+  gevault2.setBaseFee(0, {"from": owner})
+  mv = MigrateVault.deploy(WETH, {"from": owner})
+  (bt0, bt1, btvl) = gevault.getReserves()
+
+  with brownie.reverts("ERC20: transfer amount exceeds allowance"): mv.migrate(1e18, WETH, gevault, gevault2, {"from": owner})
+  gevault.approve(mv, 2**256-1, {"from": owner})
+  mv.migrate(1e18, WETH, gevault, gevault2, {"from": owner})
+  
+  (at0, at1, atvl) = gevault2.getReserves()
+  (at01, at11, atvl0) = gevault.getReserves()
+  assert abs(atvl + atvl0 - btvl) <= 2 # tvl acceptable 1 unit error from roundings on each pool calculation
+  assert gevault2.balanceOf(owner) == gevault2.totalSupply()
