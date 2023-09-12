@@ -157,7 +157,8 @@ contract V3Proxy is ReentrancyGuard, Ownable {
         acceptPayable = true;
         ROUTER.refundETH();
         acceptPayable = false;
-        msg.sender.call{value: msg.value - amounts[0]}("");
+        (bool success, ) = payable(msg.sender).call{value: msg.value - amounts[0]}("");
+        require(success, "Error sending ETH");
         emit Swap(msg.sender, path[0], path[1], amounts[0], amounts[1]); 
     }
     
@@ -177,7 +178,8 @@ contract V3Proxy is ReentrancyGuard, Ownable {
         acceptPayable = true;
         weth.withdraw(amountOut);
         acceptPayable = false;
-        payable(msg.sender).call{value: amountOut}("");
+        (bool success, ) = payable(msg.sender).call{value: amountOut}("");
+        require(success, "Error sending ETH");
         emit Swap(msg.sender, path[0], path[1], amounts[0], amounts[1]); 
     }
        
@@ -197,6 +199,8 @@ contract V3Proxy is ReentrancyGuard, Ownable {
         weth.withdraw(amounts[1]);
         acceptPayable = false;
         payable(msg.sender).call{value: amounts[1]}("");
+        (bool success, ) = payable(msg.sender).call{value: amounts[1]}("");
+        require(success, "Error sending ETH");
         emit Swap(msg.sender, path[0], path[1], amounts[0], amounts[1]);                 
     }
 
