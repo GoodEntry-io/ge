@@ -470,7 +470,7 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
     for (uint tickIndex = 0; tickIndex < ticks.length; tickIndex++){
       (uint amt0, uint amt1) = ticks[tickIndex].getTokenAmountsExcludingFees(1e18);
       // found a tick that's above price (ie its only underlying is the base token)
-      if( (baseTokenIsToken0 && amt0 == 0) || (!baseTokenIsToken0 && amt0 == 0) ) return tickIndex;
+      if( (baseTokenIsToken0 && amt1 == 0) || (!baseTokenIsToken0 && amt0 == 0) ) return tickIndex;
     }
     // all ticks are below price
     return ticks.length;
