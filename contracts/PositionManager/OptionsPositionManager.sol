@@ -232,6 +232,10 @@ contract OptionsPositionManager is PositionManager {
 
     cleanup(LP, user, token0);
     cleanup(LP, user, token1);
+    if (msg.sender == user){
+      (,,,,,uint256 hf) = LP.getUserAccountData(msg.sender);
+      require(hf > 1e18, "Health factor too low");
+    }
     emit ReducedPosition(user, debtAsset, debt);
   }
 
