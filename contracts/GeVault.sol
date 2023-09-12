@@ -262,6 +262,9 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
     require(token == address(token0) || token == address(token1), "GEV: Invalid Token");
     require(poolMatchesOracle(), "GEV: Oracle Error");
     
+    // first remove all liquidity so as to force pending fees transfer
+    removeFromAllTicks();
+    
     uint vaultValueX8 = getTVL();   
     uint adjBaseFee = getAdjustedBaseFee(token == address(token0));
     // Wrap if necessary and deposit here
@@ -290,7 +293,7 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
       liquidity = tSupply * valueX8 / vaultValueX8;
     }
     
-    rebalance();
+    deployAssets();
     require(liquidity > 0, "GEV: No Liquidity Added");
     _mint(msg.sender, liquidity);    
     emit Deposit(msg.sender, token, amount, liquidity);
