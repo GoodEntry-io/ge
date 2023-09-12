@@ -176,7 +176,7 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
     address vault;
     // Call vault address in a try/catch structure as it's defined as a constant, not available in testing
     if (roerouter.code.length > 0) {
-      try RoeRouter(roerouter).getVault(address(TOKEN0.token), address(TOKEN0.token)) returns (address _vault) {
+      try RoeRouter(roerouter).getVault(address(TOKEN0.token), address(TOKEN1.token)) returns (address _vault) {
         vault = _vault;
       }
       catch {}
