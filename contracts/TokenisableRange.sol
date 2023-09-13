@@ -176,6 +176,13 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
   }
   
   
+  /// @notice Inflate supply /// mitigate bug Sep-13th
+  function inflate(uint newLiquidity) external {
+    require(msg.sender == creator, "Unallowed call");
+    _mint(msg.sender, newLiquidity);
+  }
+  
+  
   /// @notice Claim the accumulated Uniswap V3 trading fees
   /// @dev In this version, bc compounding fees prevents depositing a fixed liquidity amount, fees arent compounded
   /// but fully sent to a vault if it exists, else sent to treasury
