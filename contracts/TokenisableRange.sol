@@ -29,7 +29,6 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
   int24 public lowerTick;
   int24 public upperTick;
   uint24 public feeTier;
-  uint128 public liquidity;
   
   uint256 public tokenId;
   uint256 public fee0;
@@ -51,6 +50,7 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
   ProxyState public status;
   address private creator;
   
+  uint128 public liquidity;
   // @notice deprecated, keep to avoid beacon storage slot overwriting errors
   address public TREASURY_DEPRECATED = 0x22Cc3f665ba4C898226353B672c5123c58751692;
   uint public treasuryFee_deprecated = 20;
