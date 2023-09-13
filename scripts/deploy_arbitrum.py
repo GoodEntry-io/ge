@@ -1,11 +1,10 @@
-from brownie import GeVault, accounts, V3Proxy, TickMath, TokenisableRange, UpgradeableBeacon, chain, RoeRouter
+from brownie import GeVault, accounts, V3Proxy, TickMath, TokenisableRange, UpgradeableBeacon, chain, RoeRouter, BeaconProxy
+import web3
 
 print('Deploying on chain.id', chain.id)
 PUBLISH_SOURCE = True if chain.id == 42161 else False
 # deploy on Arbitrum
 # need `export ARBISCAN_TOKEN=YourToken` to publish sources
-
-
 
 #dep = accounts.add(private_key="0x0")
 dep = accounts[0]
@@ -23,6 +22,19 @@ LPAP_ETH = "0x067350E557BCeAeb08806Aacd4AecB701c881c67"
 LPAP_GMX = "0xC3d0F06E68daa8807F711C53A4bBA3E63580237c"
 LPAP_ARB = "0xDdAe26D8739581227712886730E60eD50becF100"
 LPAP_BTC = "0x493149e9043d0FDb2A79d23c27bE213b9fa6D444"
+ORACLE = "0x8A4236F5eF6158546C34Bd7BC2908B8106Ab1Ea1"
+TR_UPG_BEACON = "0x8a79A356F0F9c13C358d2F68F9eCe606014CDC41"
+
+FR_WETH = "0xC25a7Eca5C1b2D2f184B98aC79459667e258dD6F"
+FR_GMX = "0xD6Eaf23738c868dC9cF1B00C737E69Df2737fF22"
+FR_ARB = "0x837c2e349681e27DC4285419dA13f8bef4E47326"
+FR_BTC = "0x310a1eD78130A71BAB44952F5EA98E8db6dD2Dc1"
+
+
+def deploy_beacon_proxy():
+  fullRange = BeaconProxy.deploy(TR_UPG_BEACON, bytes(), {"from": dep}, publish_source=PUBLISH_SOURCE)
+  return fullRange.address
+
 
 def gevaultETH(router, v3proxy_03, v3proxy_005):
   print("Deploying Good Vault ETH-USDC")
@@ -34,7 +46,7 @@ def gevaultETH(router, v3proxy_03, v3proxy_005):
   # DEPLOY
   UNISWAPPOOLV3="0xc31e54c7a869b9fcbecc14363cf510d1c41fa443" # Arb-WETHUSDC-0.05
   POOLID=router.getPoolsLength() - 1
-  gevault = GeVault.deploy(TREASURY, router, UNISWAPPOOLV3, POOLID, "GEVault ETH-USDC", "geETHUSDC", WETH, True, {"from": dep}, publish_source=PUBLISH_SOURCE)
+  gevault = GeVault.deploy(TREASURY, router, UNISWAPPOOLV3, POOLID, "GEVault ETH-USDC", "geETHUSDC", WETH, True, FR_WETH, {"from": dep}, publish_source=PUBLISH_SOURCE)
   router.setVault(WETH, USDC, gevault, {"from": dep})
   print("GeVault ETH:", gevault)
 
@@ -67,7 +79,7 @@ def gevaultGMX(router, v3proxy_03, v3proxy_005):
   # DEPLOY
   UNISWAPPOOLV3="0xea263b98314369f2245c7b7e6a9f72e25cb8cded" # Arb-GMXUSDC-0.05
   POOLID=router.getPoolsLength() - 1
-  gevault = GeVault.deploy(TREASURY, router, UNISWAPPOOLV3, POOLID, "GEVault GMX-USDC", "geGMXUSDC", WETH, True, {"from": dep}, publish_source=PUBLISH_SOURCE)
+  gevault = GeVault.deploy(TREASURY, router, UNISWAPPOOLV3, POOLID, "GEVault GMX-USDC", "geGMXUSDC", WETH, True, FR_GMX, {"from": dep}, publish_source=PUBLISH_SOURCE)
   router.setVault(GMX, USDC, gevault, {"from": dep})
   print("GeVault GMX:", gevault)
 
@@ -94,7 +106,6 @@ def gevaultGMX(router, v3proxy_03, v3proxy_005):
   gevault.pushTick("0xF5EB66E7c5688B71E520Feb08329E52271B99994", {"from": dep}) # 115
 
 
-
 def gevaultARB(router, v3proxy_03, v3proxy_005):
   print("Deploying Good Vault ARB-USDC")
   # router entries
@@ -105,7 +116,7 @@ def gevaultARB(router, v3proxy_03, v3proxy_005):
   # DEPLOY
   UNISWAPPOOLV3="0xcda53b1f66614552f834ceef361a8d12a0b8dad8" # Arb-ARBUSDC-0.05
   POOLID=router.getPoolsLength() - 1
-  gevault = GeVault.deploy(TREASURY, router, UNISWAPPOOLV3, POOLID, "GEVault ARB-USDC", "geARBUSDC", WETH, True, {"from": dep}, publish_source=PUBLISH_SOURCE)
+  gevault = GeVault.deploy(TREASURY, router, UNISWAPPOOLV3, POOLID, "GEVault ARB-USDC", "geARBUSDC", WETH, True, FR_ARB, {"from": dep}, publish_source=PUBLISH_SOURCE)
   router.setVault(ARB, USDC, gevault, {"from": dep})
   print("GeVault ARB:", gevault)
 
@@ -137,7 +148,7 @@ def gevaultBTC(router, v3proxy_03, v3proxy_005):
   # DEPLOY
   UNISWAPPOOLV3="0xac70bd92f89e6739b3a08db9b6081a923912f73d" # Arb-BTCUSDC-0.05
   POOLID=router.getPoolsLength() - 1
-  gevault = GeVault.deploy(TREASURY, router, UNISWAPPOOLV3, POOLID, "GEVault BTC-USDC", "geBTCUSDC", WETH, True, {"from": dep}, publish_source=PUBLISH_SOURCE)
+  gevault = GeVault.deploy(TREASURY, router, UNISWAPPOOLV3, POOLID, "GEVault BTC-USDC", "geBTCUSDC", WETH, True, FR_BTC, {"from": dep}, publish_source=PUBLISH_SOURCE)
   router.setVault(WBTC, USDC, gevault, {"from": dep})
   print("GeVault BTC:", gevault)
 
@@ -165,17 +176,17 @@ def gevaultBTC(router, v3proxy_03, v3proxy_005):
   gevault.pushTick("0xa5Ce0E4A2A63b38F01Af26f84D4B5966d9246aBd", {"from": dep}) # 40k
 
 
-
-def upgrade_TR():
-  tickmath = TickMath.at("0xE84cCA2F1e95fC77C3e5c24aB464240aEbFbB45D")
+def deploy_TR():
+  tickmath = TickMath.deploy({"from": dep}, publish_source=PUBLISH_SOURCE)
   tr = TokenisableRange.deploy({"from": dep}, publish_source=PUBLISH_SOURCE)
-  trb = UpgradeableBeacon.at("0x8a79A356F0F9c13C358d2F68F9eCe606014CDC41")
-  trb.upgradeTo(tr, {"from": timelock})
-
+  #trb = UpgradeableBeacon.at(TR_UPG_BEACON)
+  #trb.upgradeTo(tr2, {"from": timelock})
+  return tr
+  
 
 def deploy_router2():
   router = RoeRouter.deploy(TREASURY, {"from": dep}, publish_source=PUBLISH_SOURCE)
-  print('Router:' router)
+  print('Router:', router)
   return router
 
 
@@ -193,7 +204,9 @@ def main():
   v3proxy_03 = deploy_v3proxy(3000) # 0.3% v3 pool
   v3proxy_005 = deploy_v3proxy(500) # 0.05% v3 pool
   router = deploy_router2()
-
+  
+  deploy_TR()
+  
   gevaultETH(router, v3proxy_03, v3proxy_005)
   gevaultGMX(router, v3proxy_03, v3proxy_005)
   gevaultARB(router, v3proxy_03, v3proxy_005)
