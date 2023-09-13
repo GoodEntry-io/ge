@@ -60,7 +60,7 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
   IUniswapV3Factory constant public V3_FACTORY = IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984); 
   address constant public treasury = 0x22Cc3f665ba4C898226353B672c5123c58751692;
   uint constant public treasuryFee = 20;
-  address constant roerouter = 0x22Cc3f665ba4C898226353B672c5123c58751692;
+  address constant roerouter = 0x061D66e7392Bb056b771c398543f56F0D9Dd5137;
   uint128 constant UINT128MAX = type(uint128).max;
 
 
