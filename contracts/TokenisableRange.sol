@@ -97,7 +97,7 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
       _upperTick = (midleTick + int24(feeTier)) - (midleTick + int24(feeTier)) % int24(feeTier * 2);
       _lowerTick = _upperTick - int24(feeTier) - int24(feeTier);
       _name     = string(abi.encodePacked("Ticker ", baseSymbol, " ", quoteSymbol, " ", startName, "-", endName));
-     _symbol    = string(abi.encodePacked("T-",startName,"_",endName,"-",baseSymbol,"-",quoteSymbol));
+      _symbol    = string(abi.encodePacked("T-",startName,"_",endName,"-",baseSymbol,"-",quoteSymbol));
     } else {
       feeTier   = 5;
       _lowerTick = (_lowerTick + int24(feeTier)) - (_lowerTick + int24(feeTier)) % int24(feeTier * 2);
@@ -108,6 +108,29 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
     lowerTick = _lowerTick;
     upperTick = _upperTick;
     emit InitTR(address(asset0), address(asset1), startX10, endX10);
+  }
+  
+  
+  /// @notice Create a full range position, dont rely on token price but set ticks to min and max
+  function initProxyFullRange(IAaveOracle _oracle, ERC20 asset0, ERC20 asset1) external {
+    require(address(_oracle) != address(0x0), "Invalid oracle");
+    require(status == ProxyState.INIT_PROXY, "!InitProxy");
+    creator = msg.sender;
+    status = ProxyState.INIT_LP;
+    ORACLE = _oracle;
+    
+    TOKEN0.token    = asset0;
+    TOKEN0.decimals = asset0.decimals();
+    TOKEN1.token     = asset1;
+    TOKEN1.decimals  = asset1.decimals();
+    string memory quoteSymbol = asset0.symbol();
+    string memory baseSymbol  = asset1.symbol();
+    feeTier = 5;
+    upperTick = TickMath.MAX_TICK - TickMath.MAX_TICK % int24(feeTier);
+    lowerTick = -upperTick;
+    _name   = string(abi.encodePacked("Ranger full ", baseSymbol, " ", quoteSymbol));
+    _symbol = string(abi.encodePacked("R-full-",baseSymbol,"-",quoteSymbol));
+    emit InitTR(address(asset0), address(asset1), 0, UINT128MAX);
   }
   
 
@@ -145,7 +168,6 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
          deadline: block.timestamp
       })
     );
-    
     // Transfer remaining assets back to user
     TOKEN0.token.safeTransfer( msg.sender,  TOKEN0.token.balanceOf(address(this)));
     TOKEN1.token.safeTransfer(msg.sender, TOKEN1.token.balanceOf(address(this)));
@@ -195,16 +217,24 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
   /// @param n0 Amount of quote asset
   /// @param n1 Amount of base asset
   /// @return lpAmt Amount of LP tokens created
+  /// @dev Simplified function to deposit and receive any amount of liquidity with a default max 5% slippage
   function deposit(uint256 n0, uint256 n1) external returns (uint256 lpAmt) {
-    lpAmt = depositExactly(n0, n1, 0);
+    lpAmt = depositExactly(n0, n1, 0, 95);
   }
   
-  
+
   /// @notice Deposit assets and get exactly the expected liquidity
+  /// @param n0 Amount of quote asset
+  /// @param n1 Amount of base asset
+  /// @param expectedAmount Expected amount of liquidity created (non biding)
+  /// @param slippage Max slippage
+  /// @return lpAmt Amount of LP tokens created
   /// @dev If the returned liquidity is very small (=its underlying tokens are both 0), we can round the amount of
   /// liquidity minted. It is possible to abuse this to inflate the supply, but the gain would be several orders of magnitude
   /// lower that the necessary gas cost
-  function depositExactly(uint256 n0, uint256 n1, uint256 expectedAmount) public nonReentrant returns (uint256 lpAmt) {
+  function depositExactly(uint256 n0, uint256 n1, uint256 expectedAmount, uint slippage) public nonReentrant returns (uint256 lpAmt) {
+    
+  
     // Once all assets were withdrawn after initialisation, this is considered closed
     // Prevents TR oracle values from being too manipulatable by emptying the range and redepositing 
     require(totalSupply() > 0, "TR Closed"); 
@@ -221,8 +251,8 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
         tokenId: tokenId,
         amount0Desired: n0,
         amount1Desired: n1,
-        amount0Min: n0 * 95 / 100,
-        amount1Min: n1 * 95 / 100,
+        amount0Min: n0 * slippage / 100,
+        amount1Min: n1 * slippage / 100,
         deadline: block.timestamp
       })
     );
@@ -269,6 +299,7 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
   /// @param amount1Min Minimum amount of base token withdrawn
   function withdraw(uint256 lp, uint256 amount0Min, uint256 amount1Min) external nonReentrant returns (uint256 removed0, uint256 removed1) {
     claimFee();
+    if (lp == 0) return (0, 0);
     uint removedLiquidity = uint(liquidity) * lp / totalSupply();
     
     _burn(msg.sender, lp);
