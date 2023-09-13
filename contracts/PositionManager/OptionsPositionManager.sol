@@ -293,7 +293,7 @@ contract OptionsPositionManager is PositionManager {
         path[1] = token1;
         swapTokensForExactTokens(ammRouter, token1Amount - amtB, amtA, path); 
       }
-      debt = TokenisableRange(debtAsset).depositExactly(token0Amount, token1Amount, repayAmount);
+      debt = TokenisableRange(debtAsset).depositExactly(token0Amount, token1Amount, repayAmount, 95);
     }
     checkSetAllowance(debtAsset, address(LP), debt);
     
