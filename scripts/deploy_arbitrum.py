@@ -35,6 +35,7 @@ def gevaultETH(router, v3proxy_03, v3proxy_005):
   UNISWAPPOOLV3="0xc31e54c7a869b9fcbecc14363cf510d1c41fa443" # Arb-WETHUSDC-0.05
   POOLID=router.getPoolsLength() - 1
   gevault = GeVault.deploy(TREASURY, router, UNISWAPPOOLV3, POOLID, "GEVault ETH-USDC", "geETHUSDC", WETH, True, {"from": dep}, publish_source=PUBLISH_SOURCE)
+  router.setVault(WETH, USDC, gevault, {"from": dep})
   print("GeVault ETH:", gevault)
 
   # Add tickers
@@ -67,6 +68,7 @@ def gevaultGMX(router, v3proxy_03, v3proxy_005):
   UNISWAPPOOLV3="0xea263b98314369f2245c7b7e6a9f72e25cb8cded" # Arb-GMXUSDC-0.05
   POOLID=router.getPoolsLength() - 1
   gevault = GeVault.deploy(TREASURY, router, UNISWAPPOOLV3, POOLID, "GEVault GMX-USDC", "geGMXUSDC", WETH, True, {"from": dep}, publish_source=PUBLISH_SOURCE)
+  router.setVault(GMX, USDC, gevault, {"from": dep})
   print("GeVault GMX:", gevault)
 
   # Add tickers
@@ -104,6 +106,7 @@ def gevaultARB(router, v3proxy_03, v3proxy_005):
   UNISWAPPOOLV3="0xcda53b1f66614552f834ceef361a8d12a0b8dad8" # Arb-ARBUSDC-0.05
   POOLID=router.getPoolsLength() - 1
   gevault = GeVault.deploy(TREASURY, router, UNISWAPPOOLV3, POOLID, "GEVault ARB-USDC", "geARBUSDC", WETH, True, {"from": dep}, publish_source=PUBLISH_SOURCE)
+  router.setVault(ARB, USDC, gevault, {"from": dep})
   print("GeVault ARB:", gevault)
 
   # Add tickers
@@ -135,6 +138,7 @@ def gevaultBTC(router, v3proxy_03, v3proxy_005):
   UNISWAPPOOLV3="0xac70bd92f89e6739b3a08db9b6081a923912f73d" # Arb-BTCUSDC-0.05
   POOLID=router.getPoolsLength() - 1
   gevault = GeVault.deploy(TREASURY, router, UNISWAPPOOLV3, POOLID, "GEVault BTC-USDC", "geBTCUSDC", WETH, True, {"from": dep}, publish_source=PUBLISH_SOURCE)
+  router.setVault(WBTC, USDC, gevault, {"from": dep})
   print("GeVault BTC:", gevault)
 
   # Add tickers
