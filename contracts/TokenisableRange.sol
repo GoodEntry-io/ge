@@ -278,8 +278,6 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
       uint missingLiq = expectedAmount - lpAmt;
       uint missingLiqValue = missingLiq * latestAnswer() / 1e18;
       (uint u0, uint u1) = getTokenAmounts(missingLiq);
-      uint val0 = u0 * ORACLE.getAssetPrice(address(TOKEN0.token)) / 10**TOKEN0.decimals;
-      uint val1 = u1 * ORACLE.getAssetPrice(address(TOKEN1.token)) / 10**TOKEN1.decimals;
       // missing liquidity has no value, or underlying amount is 1 or less (meaning some 1 unit rounding error on low decimal tokens)
       if (missingLiqValue == 0 || (u0 <= 1 && u1 <= 1)){
         lpAmt = expectedAmount;
