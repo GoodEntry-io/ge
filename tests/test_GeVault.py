@@ -117,10 +117,21 @@ def contracts(owner, Strings, TickMath, TokenisableRange, UpgradeableBeacon, Ran
   trb = UpgradeableBeacon.deploy(tr, {"from": owner})
   r = RangeManager.deploy(lendingPool, usdc, weth, {"from": owner})
   yield tr, trb, r
-  
+
 @pytest.fixture(scope="module", autouse=True)
-def gevault(accounts, chain, pm, owner, timelock, lendingPool, GeVault, roerouter):
-  gevault = GeVault.deploy(TREASURY, roerouter, UNISWAPPOOLV3, 0, "GeVault WETHUSDC", "GEV-ETHUSDC", WETH, False, {"from": owner})
+def fullRangeTR(TokenisableRange, owner, usdc, weth, oracle):
+  t = TokenisableRange.deploy({"from": owner})
+  t.initProxyFullRange(oracle, usdc, weth, {"from": owner})
+  print('frTR tciks', t.lowerTick(), t.upperTick(), t.name())
+  usdc.approve(t, 2**256-1, {"from": owner})
+  weth.approve(t, 2**256-1, {"from": owner})
+  t.init(1e6, 1e18 / 1260, {"from": owner}) # init with equal values since full range
+  yield t
+
+
+@pytest.fixture(scope="module", autouse=True)
+def gevault(accounts, chain, pm, owner, timelock, lendingPool, GeVault, roerouter, fullRangeTR):
+  gevault = GeVault.deploy(TREASURY, roerouter, UNISWAPPOOLV3, 0, "GeVault WETHUSDC", "GEV-ETHUSDC", WETH, False, fullRangeTR, {"from": owner})
   yield gevault
   
 
@@ -155,8 +166,7 @@ def nearlyEqual(value0, value1):
 @pytest.mark.skip_coverage
 def exactSwap(routerV3, params, extra): # pragma: no cover
   return routerV3.exactInputSingle(params, extra)
-
-
+  
 
 @pytest.fixture(scope="module", autouse=True)
 def prep_ranger(accounts, owner, timelock, lendingPool, weth, usdc, user, interface, oracle, config, contracts, TokenisableRange, seed_accounts, liquidityRatio, gevault):
@@ -207,11 +217,11 @@ def prep_ranger(accounts, owner, timelock, lendingPool, weth, usdc, user, interf
 
 
 # Deploy contract
-def test_deploy(accounts, chain, pm, owner, timelock, lendingPool, GeVault, roerouter):
+def test_deploy(accounts, chain, pm, owner, timelock, lendingPool, GeVault, roerouter, fullRangeTR):
   with brownie.reverts("GEV: Invalid Treasury"): 
-    GeVault.deploy(NULL, roerouter, UNISWAPPOOLV3, 0, "GeVault WETHUSDC", "GEV-ETHUSDC", WETH, False, {"from": owner})
+    GeVault.deploy(NULL, roerouter, UNISWAPPOOLV3, 0, "GeVault WETHUSDC", "GEV-ETHUSDC", WETH, False, fullRangeTR, {"from": owner})
   
-  g = GeVault.deploy(TREASURY, roerouter, UNISWAPPOOLV3, 0, "GeVault WETHUSDC", "GEV-ETHUSDC", WETH, False, {"from": owner})
+  g = GeVault.deploy(TREASURY, roerouter, UNISWAPPOOLV3, 0, "GeVault WETHUSDC", "GEV-ETHUSDC", WETH, False, fullRangeTR, {"from": owner})
   assert g.latestAnswer() == 0
   
   
@@ -557,13 +567,13 @@ def test_fees(accounts, weth, usdc, owner, lendingPool, gevault, oracle, Tokenis
   assert gevault.getAdjustedBaseFee(False) == baseFee / 1.2
 
 
-def test_migration_token(gevault, GeVault, owner, timelock, roerouter, MigrateVault, usdc, weth):
+def test_migration_token(gevault, GeVault, owner, timelock, roerouter, MigrateVault, usdc, weth, fullRangeTR):
   gevault.setBaseFee(0, {"from": owner})
   usdc.approve(gevault, 2**256-1, {"from": owner})
   gevault.deposit(usdc, 1000e6, {"from": owner})
   liq = gevault.balanceOf(owner)
 
-  gevault2 = GeVault.deploy(TREASURY, roerouter, UNISWAPPOOLV3, 0, "GeVault WETHUSDC", "GEV-ETHUSDC", WETH, False, {"from": owner})
+  gevault2 = GeVault.deploy(TREASURY, roerouter, UNISWAPPOOLV3, 0, "GeVault WETHUSDC", "GEV-ETHUSDC", WETH, False, fullRangeTR, {"from": owner})
   gevault2.setBaseFee(0, {"from": owner})
   mv = MigrateVault.deploy(WETH, {"from": owner})
   (bt0, bt1, btvl) = gevault.getReserves()
@@ -578,13 +588,13 @@ def test_migration_token(gevault, GeVault, owner, timelock, roerouter, MigrateVa
   assert gevault2.balanceOf(owner) == gevault2.totalSupply()
 
 
-def test_migration_eth(gevault, GeVault, owner, timelock, roerouter, MigrateVault, usdc, weth):
+def test_migration_eth(gevault, GeVault, owner, timelock, roerouter, MigrateVault, usdc, weth, fullRangeTR):
   gevault.setBaseFee(0, {"from": owner})
   weth.approve(gevault, 2**256-1, {"from": owner})
   gevault.deposit(weth, 1e18, {"from": owner})
   liq = gevault.balanceOf(owner)
 
-  gevault2 = GeVault.deploy(TREASURY, roerouter, UNISWAPPOOLV3, 0, "GeVault WETHUSDC", "GEV-ETHUSDC", WETH, False, {"from": owner})
+  gevault2 = GeVault.deploy(TREASURY, roerouter, UNISWAPPOOLV3, 0, "GeVault WETHUSDC", "GEV-ETHUSDC", WETH, False, fullRangeTR, {"from": owner})
   gevault2.setBaseFee(0, {"from": owner})
   mv = MigrateVault.deploy(WETH, {"from": owner})
   (bt0, bt1, btvl) = gevault.getReserves()

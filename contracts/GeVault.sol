@@ -38,9 +38,13 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   event SetFee(uint baseFeeX4);
   event SetTvlCap(uint tvlCap);
   event SetLiquidityPerTick(uint8 liquidityPerTick);
+  event SetFullRangeShare(uint8 fullRangeShare);
+  event DepositedFees(address token, uint amount, uint value);
 
   /// @notice Ticks properly ordered in ascending price order
   TokenisableRange[] public ticks;
+  /// @notice Full range position
+  TokenisableRange public immutable fullRange;
 
   /// immutable keyword removed for coverage testing bug in brownie
   /// @notice Pair tokens
@@ -52,6 +56,7 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   uint24 public baseFeeX4 = 20;
   // Split underlying liquidity on X ticks below and X above current price. More volatile assets would benefit from being spread out
   uint8 public liquidityPerTick = 3;
+  uint8 public fullRangeShare = 20;
   /// @notice Max vault TVL with 8 decimals
   uint96 public tvlCap = 1e12;
   address public treasury;
@@ -62,8 +67,10 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   IWETH private WETH;
   
   /// CONSTANTS 
-  uint256 constant Q96 = 0x1000000000000000000000000;
-  uint constant UINT256MAX = type(uint256).max;
+  uint256 internal constant Q96 = 0x1000000000000000000000000;
+  uint internal constant UINT256MAX = type(uint256).max;
+  int24 internal constant MIN_TICK = -887272;
+  int24 internal constant MAX_TICK = -MIN_TICK;
 
   constructor(
     address _treasury, 
@@ -73,7 +80,8 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
     string memory name, 
     string memory symbol,
     address weth,
-    bool _baseTokenIsToken0
+    bool _baseTokenIsToken0,
+    address fullRange_
   ) 
     ERC20(name, symbol)
   {
@@ -84,6 +92,14 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
     (address lpap, address _token0, address _token1,, ) = RoeRouter(roeRouter).pools(poolId);
     token0 = ERC20(_token0);
     token1 = ERC20(_token1);
+    
+    TokenisableRange t = TokenisableRange(fullRange_);
+    (ERC20 t0,) = t.TOKEN0();
+    (ERC20 t1,) = t.TOKEN1();
+    require(t0 == token0 && t1 == token1, "GEV: Invalid TR");
+    // check that the full range makes sense: MIN_TICK=-887272, MAX_TICK=-MIN_TICK, with a granularity based on fee tier
+    require(t.lowerTick() < -887200 && t.upperTick() > 887200, "GEV: Invalid Full Range");
+    fullRange = t;
     
     lendingPool = ILendingPool(ILendingPoolAddressesProvider(lpap).getLendingPool());
     oracle = IPriceOracle(ILendingPoolAddressesProvider(lpap).getPriceOracle());
@@ -118,6 +134,17 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
     require(_liquidityPerTick > 1, "GEV: Invalid LPT");
     liquidityPerTick = _liquidityPerTick; 
     emit SetLiquidityPerTick(_liquidityPerTick);
+  }
+  
+  
+  /// @notice Set fullRangeShare (how much of assets go into the full range)
+  /// @param _fullRangeShare proportion of liquidity going to full range
+  /// @dev Since full range is balanced between both assets, the share is taken according to lowest available token
+  /// That share is therefore strictly lower that the TVL total
+  function setFullRangeShare(uint8 _fullRangeShare) public onlyOwner { 
+    require(_fullRangeShare < 100, "GEV: Invalid FRS");
+    fullRangeShare = _fullRangeShare; 
+    emit SetLiquidityPerTick(_fullRangeShare);
   }
 
 
@@ -178,7 +205,9 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
     (ERC20 t0,) = TokenisableRange(tr).TOKEN0();
     (ERC20 t1,) = TokenisableRange(tr).TOKEN1();
     require(t0 == token0 && t1 == token1, "GEV: Invalid TR");
+    removeFromAllRanges();
     ticks[index] = TokenisableRange(tr);
+    if (isEnabled) deployAssets();
     emit ModifyTick(tr, index);
   }
   
@@ -211,7 +240,7 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   /// @dev Provide the list of tickers from 
   function rebalance() public {
     require(poolMatchesOracle(), "GEV: Oracle Error");
-    removeFromAllTicks();
+    removeFromAllRanges();
     if (isEnabled) deployAssets();
   }
   
@@ -233,7 +262,7 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
     uint fee = amount * getAdjustedBaseFee(token == address(token1)) / 1e4;
     
     _burn(msg.sender, liquidity);
-    removeFromAllTicks();
+    removeFromAllRanges();
     ERC20(token).safeTransfer(treasury, fee);
     uint bal = amount - fee;
 
@@ -251,6 +280,18 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
     emit Withdraw(msg.sender, token, amount, liquidity);
   }
 
+  /// @notice deposit tokens in the pool as fee (donation, do not create liquidity)
+  /// @param token Token address
+  /// @param amount Amount of token deposited
+  function depositFee(address token, uint amount) public nonReentrant {
+    require(amount > 0, "GEV: Deposit Zero");
+    require(isEnabled, "GEV: Pool Disabled");
+    require(token == address(token0) || token == address(token1), "GEV: Invalid Token");
+    ERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+    uint valueFee = oracle.getAssetPrice(token) * amount;
+    emit DepositedFees(token, amount, valueFee);
+  }
+
 
   /// @notice deposit tokens in the pool, convert to WETH if necessary
   /// @param token Token address
@@ -263,7 +304,7 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
     require(poolMatchesOracle(), "GEV: Oracle Error");
     
     // first remove all liquidity so as to force pending fees transfer
-    removeFromAllTicks();
+    removeFromAllRanges();
     
     uint vaultValueX8 = getTVL();   
     uint adjBaseFee = getAdjustedBaseFee(token == address(token0));
@@ -313,7 +354,9 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   //////// INTERNAL FUNCTIONS
   
   /// @notice Remove assets from all the underlying ticks
-  function removeFromAllTicks() internal {
+  function removeFromAllRanges() internal {
+    uint fullRangeBal = fullRange.balanceOf(address(this));
+    if (fullRangeBal > 0) fullRange.withdraw(fullRangeBal, 0, 0);
     for (uint k = 0; k < ticks.length; k++){
       removeFromTick(k);
     }    
@@ -342,6 +385,17 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
     uint newTickIndex = getActiveTickIndex();
     uint availToken0 = token0.balanceOf(address(this));
     uint availToken1 = token1.balanceOf(address(this));
+    
+    // deposit a part of the assets in the full range. No slippage control in TR since we already checked here for sandwich
+    if (availToken0 > 0 && availToken1 > 0) {
+      uint amount0 = availToken0 * fullRangeShare / 100;
+      uint amount1 = availToken1 * fullRangeShare / 100;
+      checkSetApprove(address(token0), address(fullRange), amount0);
+      checkSetApprove(address(token1), address(fullRange), amount1);
+      fullRange.depositExactly(amount0, amount1, 0, 0);
+    }
+    availToken0 = token0.balanceOf(address(this));
+    availToken1 = token1.balanceOf(address(this));
 
     // if base token is token0, ticks above only contain base token = token0 and ticks below only hold quote token = token1
     if (newTickIndex > 1) 
@@ -417,8 +471,12 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
   
   /// @notice Get vault underlying assets
   function getReserves() public view returns (uint amount0, uint amount1, uint valueX8){
-    amount0 = token0.balanceOf(address(this));
-    amount1 = token1.balanceOf(address(this));
+    // full range amounts
+    (amount0, amount1) = fullRange.getTokenAmounts(fullRange.balanceOf(address(this)));
+    // undeposited tokens
+    amount0 += token0.balanceOf(address(this));
+    amount1 += token1.balanceOf(address(this));
+    // ticks amounts
     for (uint k = 0; k < ticks.length; k++){
       TokenisableRange t = ticks[k];
       address aTick = lendingPool.getReserveData(address(t)).aTokenAddress;
@@ -427,7 +485,6 @@ contract GeVault is ERC20, Ownable, ReentrancyGuard {
       amount0 += amt0;
       amount1 += amt1;
     }
-    
     valueX8 = amount0 * oracle.getAssetPrice(address(token0)) / 10**token0.decimals() 
             + amount1 * oracle.getAssetPrice(address(token1)) / 10**token1.decimals();
   }
