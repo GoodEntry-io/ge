@@ -189,7 +189,7 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
       })
     );
     // If there's no new fees generated, skip compounding logic;
-    if ((newFee0 == 0) && (newFee1 == 0)) return;  
+    //if ((newFee0 == 0) && (newFee1 == 0)) return;  // dont skip for now as remaining fees need to be moved out
     uint tf0 = newFee0 * treasuryFee / 100;
     uint tf1 = newFee1 * treasuryFee / 100;
     if (tf0 > 0) TOKEN0.token.safeTransfer(treasury, tf0);
@@ -206,9 +206,15 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
     
     if (vault == address(0x0)) vault = treasury; // if case vault doesnt exist send to treasury
     tf0 = TOKEN0.token.balanceOf(address(this));
-    if (tf0 > 0) TOKEN0.token.safeTransfer(vault, tf0);
+    if (tf0 > 0) {
+      TOKEN0.token.safeTransfer(vault, tf0);
+      fee0 = 0;
+    }
     tf1 = TOKEN1.token.balanceOf(address(this));
-    if (tf1 > 0) TOKEN1.token.safeTransfer(vault, tf1);
+    if (tf1 > 0) {
+      TOKEN1.token.safeTransfer(vault, tf1);
+      fee1 = 0;
+    }
     emit ClaimFees(newFee0, newFee1);
   }
   
