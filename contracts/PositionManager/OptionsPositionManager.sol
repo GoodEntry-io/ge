@@ -257,7 +257,7 @@ contract OptionsPositionManager is PositionManager {
   {
     (ILendingPool LP,,IUniswapV2Router01 ammRouter, address token0, address token1) = getPoolAddresses(poolId);
     sanityCheckUnderlying(debtAsset, token0, token1);
-    require(collateralAsset == token0 || collateralAsset == token1, "OPM: Invalid Collateral Asset");
+    require(collateralAsset == token0 || collateralAsset == token1 || collateralAsset == address(0x0), "OPM: Invalid Collateral Asset");
     uint amtA;
     uint amtB;
     
@@ -319,7 +319,7 @@ contract OptionsPositionManager is PositionManager {
     }
     
     // Swap other token back to collateral: this allows to control exposure
-    if (user == msg.sender) swapAll(poolId, collateralAsset == token0 ? token1 : token0);
+    if (user == msg.sender && collateralAsset != address(0x0)) swapAll(poolId, collateralAsset == token0 ? token1 : token0);
   }
   
   
