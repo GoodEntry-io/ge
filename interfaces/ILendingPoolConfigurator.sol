@@ -16,6 +16,7 @@ interface ILendingPoolConfigurator {
   function setReserveFactor(address asset, uint256 reserveFactor) external;
   function deactivateReserve(address asset) external;
   function freezeReserve(address asset) external;
+  function setPoolPause(bool val) external;
 
   struct InitReserveInput {
     address aTokenImpl;
