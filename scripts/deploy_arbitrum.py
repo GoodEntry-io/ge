@@ -30,6 +30,8 @@ FR_GMX = "0xD6Eaf23738c868dC9cF1B00C737E69Df2737fF22"
 FR_ARB = "0x837c2e349681e27DC4285419dA13f8bef4E47326"
 FR_BTC = "0x310a1eD78130A71BAB44952F5EA98E8db6dD2Dc1"
 
+ROUTERV2="0x061D66e7392Bb056b771c398543f56F0D9Dd5137"
+
 
 def deploy_beacon_proxy():
   fullRange = BeaconProxy.deploy(TR_UPG_BEACON, bytes(), {"from": dep}, publish_source=PUBLISH_SOURCE)
@@ -185,7 +187,8 @@ def deploy_TR():
   
 
 def deploy_router2():
-  router = RoeRouter.deploy(TREASURY, {"from": dep}, publish_source=PUBLISH_SOURCE)
+  #router = RoeRouter.deploy(TREASURY, {"from": dep}, publish_source=PUBLISH_SOURCE)
+  router = RoeRouter.at(ROUTERV2)
   print('Router:', router)
   return router
 
@@ -201,11 +204,13 @@ def deploy_v3proxy(feeTier):
 
 
 def main():
-  v3proxy_03 = deploy_v3proxy(3000) # 0.3% v3 pool
-  v3proxy_005 = deploy_v3proxy(500) # 0.05% v3 pool
+  #v3proxy_03 = deploy_v3proxy(3000) # 0.3% v3 pool
+  v3proxy_03 = V3Proxy.at("0x59Db3FBf181d129b3BD94B9f5209Afd0A9B39671")
+  #v3proxy_005 = deploy_v3proxy(500) # 0.05% v3 pool
+  v3proxy_005 = V3Proxy.at("0x40f785d85B89a565521952D3D8Ae731A6ea40126")
+  #v3proxy_1 = deploy_v3proxy(10000) # 1% v3 pool
   router = deploy_router2()
-  
-  deploy_TR()
+  #deploy_TR()
   
   gevaultETH(router, v3proxy_03, v3proxy_005)
   gevaultGMX(router, v3proxy_03, v3proxy_005)
