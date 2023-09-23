@@ -206,15 +206,11 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
     
     if (vault == address(0x0)) vault = treasury; // if case vault doesnt exist send to treasury
     tf0 = TOKEN0.token.balanceOf(address(this));
-    if (tf0 > 0) {
-      TOKEN0.token.safeTransfer(vault, tf0);
-      fee0 = 0;
-    }
+    if (tf0 > 0) TOKEN0.token.safeTransfer(vault, tf0);
+    fee0 = 0;
     tf1 = TOKEN1.token.balanceOf(address(this));
-    if (tf1 > 0) {
-      TOKEN1.token.safeTransfer(vault, tf1);
-      fee1 = 0;
-    }
+    if (tf1 > 0) TOKEN1.token.safeTransfer(vault, tf1);
+    fee1 = 0;
     emit ClaimFees(newFee0, newFee1);
   }
   
