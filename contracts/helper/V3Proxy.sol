@@ -198,7 +198,6 @@ contract V3Proxy is ReentrancyGuard, Ownable {
         acceptPayable = true;
         weth.withdraw(amounts[1]);
         acceptPayable = false;
-        payable(msg.sender).call{value: amounts[1]}("");
         (bool success, ) = payable(msg.sender).call{value: amounts[1]}("");
         require(success, "Error sending ETH");
         emit Swap(msg.sender, path[0], path[1], amounts[0], amounts[1]);                 
