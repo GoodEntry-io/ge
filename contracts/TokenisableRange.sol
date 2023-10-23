@@ -242,6 +242,7 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
     require(totalSupply() > 0, "TR Closed"); 
     
     claimFee();
+    if (n0 == 0 && n1 == 0) return 0;
     TOKEN0.token.safeTransferFrom(msg.sender, address(this), n0);
     TOKEN1.token.safeTransferFrom(msg.sender, address(this), n1);
     TOKEN0.token.safeIncreaseAllowance(address(POS_MGR), n0);
