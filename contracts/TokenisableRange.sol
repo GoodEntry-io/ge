@@ -134,6 +134,8 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
   }
   
 
+  
+
   /// @notice Get the name of this contract token
   /// @dev Override name, symbol and decimals from ERC20 inheritance
   function name()     public view virtual override returns (string memory) { return _name; }
@@ -149,6 +151,17 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
     require(status == ProxyState.INIT_LP, "!InitLP");
     require(msg.sender == creator, "Unallowed call");
     status = ProxyState.READY;
+    _init(n0, n1);
+  }
+  
+  /// @notice Re-init a TR that was closed
+  function initAgain(uint n0, uint n1) external {
+    require(totalSupply() == 0 && status == ProxyState.READY, "Not closed");
+    require(msg.sender == creator, "Unallowed call");
+    _init(n0, n1);
+  }
+    
+  function _init(uint n0, uint n1) internal {
     TOKEN0.token.safeTransferFrom(msg.sender, address(this), n0);
     TOKEN1.token.safeTransferFrom(msg.sender, address(this), n1);
     TOKEN0.token.safeIncreaseAllowance(address(POS_MGR), n0);
@@ -168,13 +181,14 @@ contract TokenisableRange is ERC20("", ""), ReentrancyGuard {
          deadline: block.timestamp
       })
     );
+    
     // Transfer remaining assets back to user
     TOKEN0.token.safeTransfer( msg.sender,  TOKEN0.token.balanceOf(address(this)));
     TOKEN1.token.safeTransfer(msg.sender, TOKEN1.token.balanceOf(address(this)));
     _mint(msg.sender, 1e18);
-    emit Deposit(msg.sender, 1e18);
+    emit Deposit(msg.sender, 1e18);  
   }
-  
+
   
   /// @notice Claim the accumulated Uniswap V3 trading fees
   /// @dev In this version, bc compounding fees prevents depositing a fixed liquidity amount, fees arent compounded

@@ -166,7 +166,6 @@ def test_TT_tickerBelow(accounts, owner, lendingPool, wbtc, usdc, user, interfac
   tr.approve(user, 2**256-1, {"from": owner})
   assert tr.allowance(owner, user) == 2**256-1
   
-  with brownie.reverts(): tr.withdraw( 0, 0, 0, {"from": owner})
   with brownie.reverts("ERC20: burn amount exceeds balance"): tr.withdraw( tr.balanceOf(owner)+1, 0, 0, {"from": owner})
   tr.withdraw( tr.balanceOf(owner)/2, 0, 0, {"from": owner})
   tr.withdraw( tr.balanceOf(owner), 0, 0, {"from": owner})

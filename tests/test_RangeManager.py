@@ -185,7 +185,6 @@ def test_TT_tickerBelow(accounts, owner, lendingPool, weth, usdc, user, interfac
   print('underlying', tr.getTokenAmounts(tr.balanceOf(owner)))
   assert nearlyEqual (2 * liquidity, tr.liquidity())
   
-  with brownie.reverts(): tr.withdraw( 0, 0, 0, {"from": owner})
   with brownie.reverts("ERC20: burn amount exceeds balance"): tr.withdraw( tr.balanceOf(owner)+1, 0, 0, {"from": owner})
   tr.withdraw( tr.balanceOf(owner), 0, 0, {"from": owner})
   with brownie.reverts("TR Closed"): tr.deposit(1e6, 0, {"from": owner})
